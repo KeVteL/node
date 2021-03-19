@@ -1,7 +1,7 @@
 import re
+import villas.node.sample.villas_pb2
 from datetime import datetime
 from functools import total_ordering
-
 
 @total_ordering
 class Timestamp:
@@ -75,6 +75,27 @@ class Sample:
 
     @classmethod
     def parse(cls, line):
+        return cls.decode(format='villas.human', line)
+
+    @classmethod
+    def decode(cls, format='protobuf', buffer):
+        if format == 'protobuf':
+            return cls.decode_protobuf(buffer)
+        elif format == 'villas.human':
+            return cls.decode_villas_human(buffer)
+        else:
+            raise NotImplementedError()
+
+    def encode(self, format='protobuf'):
+        if format == 'protobuf':
+            return cls.encode_protobuf()
+        elif format == 'villas.human':
+            return cls.encode_villas_human()
+        else:
+            raise NotImplementedError()
+
+    @classmethod
+    def decode_villas_human(self, buf):
         csv = line.split()
 
         ts = Timestamp.parse(csv[0])
@@ -96,6 +117,65 @@ class Sample:
             vs.append(v)
 
         return Sample(ts, vs)
+
+    def encode_villas_human(self):
+        return bytes(self.__str__())
+
+    @classmethod
+    def decode_protobuf(cls, buffer):
+        msg = villas_pb2.Message()
+        msg.ParseFromString(buffer)
+
+        samples = []
+        for smp in msg:
+            if smp.HasField('timestamp'):
+                ts = Timestamp(
+                    smp.timestamp.sec,
+                    smp.timestamp.nsec
+                )
+            else:
+                ts = Timestamp.now()
+
+            if smp.HasField('sequence'):
+                ts.sequence = smp.sequence
+
+            values = []
+            for val in smp.values:
+                if val.HasField('f'):
+                    values.append(val.f)
+                elif val.HasField('i'):
+                    values.append(val.i)
+                elif val.HasField('b'):
+                    values.append(val.b)
+                elif val.HasField('z'):
+                    values.append(val.z)
+
+            sample = cls(ts, values)
+
+    def encode_protobuf(self):
+        msg = villas_pb2.Message()
+
+        smp = msg.samples.add()
+
+        ts = smp.timestamp.add()
+
+        ts.sec = self.ts.seconds
+        ts.nsec = self.ts.nanoseconds
+
+        for value in self.values:
+            val = smp.values.add()
+
+            if type(value) is int:
+                val.i = value
+            elif type(value) is float:
+                val.f = value
+            elif type(value) is bool:
+                val.b = value
+            elif type(value) is complex:
+                val.z.real = value.real
+                val.z.imag = value.imag
+        
+        return msg.SerializeToString()
 
     def __str__(self):
         return '%s\t%s' % (self.ts, "\t".join(map(str, self.values)))

@@ -56,7 +56,7 @@ class Node(object):
 
         self.log = open(self.log_filename, 'w+')
 
-        LOGGER.info("Starting VILLASnode instance with config: %s",
+        LOGGER.info("Starting VILLASnode instance with config: {}",
                     self.config_file.name)
 
         self.child = subprocess.Popen([self.executable, self.config_file.name],

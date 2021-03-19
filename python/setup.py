@@ -28,7 +28,9 @@ setup(
         'Programming Language :: Python :: 3'
     ],
     install_requires=[
-        'requests'
+        'requests',
+        'protobuf',
+        'pyzmq'
     ] + [
         'linuxfd'
     ] if sys.platform == 'linux' else [],
