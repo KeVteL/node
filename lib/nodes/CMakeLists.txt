@@ -66,8 +66,9 @@ if(WITH_NODE_ULDAQ)
     list(APPEND LIBRARIES PkgConfig::LIBULDAQ)
 endif()
 
+#Enable ft4222 node-type
 if(WITH_NODE_FT4222)
-    list(APPEND NODE_SRC ft4222h.cpp)
+    list(APPEND NODE_SRC ft4222.cpp)
     list(APPEND LIBRARIES PkgConfig::LIBFT4222)
     list(APPEND LIBRARIES PkgConfig::LIBFTD2XX)
 endif()
