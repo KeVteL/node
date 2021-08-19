@@ -123,7 +123,7 @@ pkg_check_modules(CGRAPH IMPORTED_TARGET libcgraph>=2.30)
 pkg_check_modules(GVC IMPORTED_TARGET libgvc>=2.30)
 pkg_check_modules(LIBUSB IMPORTED_TARGET libusb-1.0>=1.0.23)
 pkg_check_modules(NANOMSG IMPORTED_TARGET nanomsg)
-pkg_check_modules(LIBFT4222 IMPORTED_TARGET libft4222)  #FT4222H Node
+pkg_check_modules(LIBFT4222 IMPORTED_TARGET libft4222) 
 pkg_check_modules(LIBFTD2XX IMPORTED_TARGET libftd2xx)
 
 if(NOT NANOMSG_FOUND)
@@ -172,9 +172,7 @@ cmake_dependent_option(WITH_NODE_ETHERCAT   "Build with ethercat node-type"     
 cmake_dependent_option(WITH_NODE_EXAMPLE    "Build with example node-type"                          ON "" OFF)
 cmake_dependent_option(WITH_NODE_EXEC       "Build with exec node-type"                             ON "" OFF)
 cmake_dependent_option(WITH_NODE_FILE       "Build with file node-type"                             ON "" OFF)
-
-cmake_dependent_option(WITH_NODE_FT4222     "Build with ft4222 node-type"                           ON "LIBFT4222_FOUND;LIBFTD2XX_FOUND" OFF) #FT4222H Node
-
+cmake_dependent_option(WITH_NODE_FT4222     "Build with ft4222 node-type"                           ON "LIBFT4222_FOUND;LIBFTD2XX_FOUND" OFF)
 cmake_dependent_option(WITH_NODE_FPGA       "Build with fpga node-type"                             ON "WITH_FPGA" OFF)
 cmake_dependent_option(WITH_NODE_IEC61850   "Build with iec61850 node-types"                        ON "LIBIEC61850_FOUND" OFF)
 cmake_dependent_option(WITH_NODE_INFINIBAND "Build with infiniband node-type"                       ON "FALSE; IBVerbs_FOUND; RDMACM_FOUND" OFF) # Infiniband node-type is currenly broken
@@ -269,9 +267,7 @@ add_feature_info(DOC                    WITH_DOC                    "Build docum
 add_feature_info(NODE_AMQP              WITH_NODE_AMQP              "Build with amqp node-type")
 add_feature_info(NODE_COMEDI            WITH_NODE_COMEDI            "Build with comedi node-type")
 add_feature_info(NODE_FILE              WITH_NODE_FILE              "Build with file node-type")
-
-add_feature_info(WITH_NODE_FT4222       WITH_NODE_FT4222            "Build with ft4222 node-type") #FT4222 Node
-
+add_feature_info(WITH_NODE_FT4222       WITH_NODE_FT4222            "Build with ft4222 node-type")
 add_feature_info(NODE_IEC61850          WITH_NODE_IEC61850          "Build with iec61850 node-types")
 add_feature_info(NODE_INFINIBAND        WITH_NODE_INFINIBAND        "Build with infiniband node-type")
 add_feature_info(NODE_INFLUXDB          WITH_NODE_INFLUXDB          "Build with influxdb node-type")
