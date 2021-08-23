@@ -234,6 +234,9 @@ int ft4222_init(struct vnode *n)
 		return -1;
 	}
 
+//DEBUG:
+	s->raw_dumper = new villas::node::Dumper("/tmp/test_sock");
+n->logger->error("Logger started");	
 	return 0;
 }
 
@@ -285,9 +288,9 @@ int ft4222_destroy(struct vnode *n)
 	//Todo: Kill thread and stuff
 	FT4222_UnInitialize(&s->dev_handle);
 	FT_Close(&s->dev_handle);
+	free(&s->raw_dumper);
 	return 0;
 }
-
 
 /**
  * @brief This function parses the .conf configuration file.
@@ -330,7 +333,6 @@ int ft4222_parse(struct vnode *n, json_t *json)
 	return 0;
 }
 
-
 /**
  * @brief TODO
  * 
@@ -343,7 +345,7 @@ char *ft_print(struct vnode *n)
 
 	/* TODO: Add implementation here. The following is just an example */
 
-	return strf("This is default stuff");
+	return strf("This one is with the fucking fucks that fuck");
 }
 
 /**
@@ -410,7 +412,11 @@ int ft4222_read(struct vnode *n, struct sample *const smps[], unsigned cnt)
 			{
 				throw new RuntimeError("Allignment faliure");
 			}
+			u->raw_dumper->writeDataBinary(1,&(smp->data[chan_index].f));
+			n->logger->error("Hihihi");
 		}
+
+
 		smp->length = u->channel_count;
 		smp->signals = &n->in.signals;
 		smp->sequence = u->sequece++;
