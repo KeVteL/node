@@ -59,8 +59,10 @@ int Dumper::openSocket()
 	strcpy(socketaddrUn.sun_path, socketName.c_str());
 
 	int ret = connect(socketFd, (struct sockaddr *) &socketaddrUn, sizeof(socketaddrUn));
-	if (!ret)
-		return ret;
+	if (ret < 0){
+		logger->error("Error connecting socket {}.\tErrno {}",socketName,strerror(errno));
+		return -1;
+	}
 
 	return 0;
 }

@@ -25,7 +25,7 @@ struct ft4222
     /* Device */
     FT_HANDLE dev_handle;
     villas::node::Dumper *raw_dumper;
-
+    bool use_dumper;
     struct
     {
         double sample_rate;

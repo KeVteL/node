@@ -234,9 +234,6 @@ int ft4222_init(struct vnode *n)
 		return -1;
 	}
 
-//DEBUG:
-	s->raw_dumper = new villas::node::Dumper("/tmp/test_sock");
-n->logger->error("Logger started");	
 	return 0;
 }
 
@@ -266,13 +263,19 @@ int ft4222_start(struct vnode *n)
 		return -1;
 	}
 
-	//2. Set SPI Driving stren
+	//2. Set SPI Driving strenght
 	status = FT4222_SPI_SetDrivingStrength(s->dev_handle, DS_12MA, DS_16MA, DS_16MA);
 	if (status != FT_OK)
 	{
 		n->logger->error("Setting device driving strength failed with error: {}\n", ft4222_stat_to_str(status));
 		FT_Close(&s->dev_handle);
 		return -1;
+	}
+
+	//3. Create socket to dump values to for debugging reasons, if set by the 
+	if(s->use_dumper){
+		s->raw_dumper = new villas::node::Dumper("/tmp/ft4222_dump");
+		n->logger->debug("Created dumper at /tmp/ft4222_dump");	
 	}
 
 	s->sequece = 0;
@@ -284,11 +287,13 @@ int ft4222_start(struct vnode *n)
  */
 int ft4222_destroy(struct vnode *n)
 {
-	struct ft4222 *s = (struct ft4222 *)n->_vd;
 	//Todo: Kill thread and stuff
+	struct ft4222 *s = (struct ft4222 *)n->_vd;
 	FT4222_UnInitialize(&s->dev_handle);
 	FT_Close(&s->dev_handle);
-	free(&s->raw_dumper);
+	if(&s->use_dumper){
+		delete &s->raw_dumper;
+	}
 	return 0;
 }
 
@@ -303,33 +308,33 @@ int ft4222_parse(struct vnode *n, json_t *json)
 	json_error_t err;
 	int sys_clock_int;
 	int vec_int;
-	const char* test;
+	const char *test;
 	const char *sig_json_str = nullptr;
-
+	bool use_dumper;
+	
 	//1. Node json
-	const char* a = json_dumps(json,0);
+	const char *a = json_dumps(json, 0);
 	n->logger->debug(a);
 
-	ret = json_unpack_ex(json, &err, 0, "{s?: s,s?: i,s: {s?: i,s?: i,s: o}}",
+	ret = json_unpack_ex(json, &err, 0, "{s?: s,s?: i, s: b, s:{s?: i,s?: i,s: o}}",
 						 "type", &test,
 						 "system_clock", &sys_clock_int,
+						 "dumper", &use_dumper,
 						 "in",
-						 	"sample_rate", &(s->sample_rate),
-							"vectorize",&vec_int,
-							"signals",&sig_json_str
-						);
+						 "sample_rate", &(s->sample_rate),
+						 "vectorize", &vec_int,
+						 "signals", &sig_json_str);
 
-
-	if(ret<0){
-		n->logger->error("Fehler: {} \t\t At: line:{}\tcol:{}\tsrc:{}\tpos:{}",err.text,err.line,err.column,err.source,err.position);
-		throw new RuntimeError("AAAAAAAAAAAAAAAAAAAAAAAAAA");
+	if (ret < 0)
+	{
+		n->logger->error("Fehler: {} \t\t At: line:{}\tcol:{}\tsrc:{}\tpos:{}", err.text, err.line, err.column, err.source, err.position);
+		throw new RuntimeError("Pasing failed");
 	}
-	
-	s->channel_count = vlist_length(&n->in.signals);
-	//Other stuff: TODO:
 
-	//2. Signal json
-	//TODO:*/
+	s->channel_count = vlist_length(&n->in.signals);
+	s->use_dumper = use_dumper;
+
+
 	return 0;
 }
 
@@ -342,10 +347,7 @@ int ft4222_parse(struct vnode *n, json_t *json)
 char *ft_print(struct vnode *n)
 {
 	//struct ft4222 *s = (struct ft4222 *)n->_vd;
-
-	/* TODO: Add implementation here. The following is just an example */
-
-	return strf("This one is with the fucking fucks that fuck");
+	return strf("Version with dumper");
 }
 
 /**
@@ -366,10 +368,10 @@ int ft4222_read(struct vnode *n, struct sample *const smps[], unsigned cnt)
 	//0. Confirm that enough space is ready for the data.
 	const int needed_space = n->in.vectorize * u->channel_count * (3.0 / 2.0);
 
-	assert(cnt == n->in.vectorize);				   //Enough samples
-	assert(smps[0]->capacity >= u->channel_count); //Large enough samples
+	assert(cnt == n->in.vectorize);													   //Enough samples
+	assert(smps[0]->capacity >= u->channel_count);									   //Large enough samples
 	assert((float)needed_space == (n->in.vectorize * u->channel_count * (3.0 / 2.0))); //This confirms that there will be no sample that is split between this read and the next one
-	
+
 	//1. Confirm that there is enough data in the libft4222 buffer to get 100 smp packages
 	uint16_t available_space;
 	do
@@ -397,25 +399,23 @@ int ft4222_read(struct vnode *n, struct sample *const smps[], unsigned cnt)
 			int chan_start = ((int)(chan_index * 1.5)) + row_start;
 			int chan_allign = chan_start % 3;
 
-			if (chan_allign == 0) //start of 12 bit aligns flush with 8 bit array
+			if (chan_allign == 0) //Bit 11 alligns with start of buffer value
 			{
-				short a = (buffer[chan_start] << 4) ;
+				short a = (buffer[chan_start] << 4);
 				short b = (((buffer[chan_start + 1]) & 0xF0) >> 4);
-				smp->data[chan_index].f = a|b;
+				smp->data[chan_index].f = a | b;
 			}
-			else if (chan_allign == 1) //start of 12 is in the middle of the 2nd byte
+			else if (chan_allign == 1) //Bit 11 is in the middle of a buffer value
 			{
 				smp->data[chan_index].f = (((buffer[chan_start]) & 0x0F) << 8) |
-										  (buffer[chan_start+1]);
+										  (buffer[chan_start + 1]);
 			}
 			else //Allignment error
 			{
 				throw new RuntimeError("Allignment faliure");
 			}
-			u->raw_dumper->writeDataBinary(1,&(smp->data[chan_index].f));
-			n->logger->error("Hihihi");
+			u->raw_dumper->writeDataBinary(1, &(smp->data[chan_index].f));
 		}
-
 
 		smp->length = u->channel_count;
 		smp->signals = &n->in.signals;
