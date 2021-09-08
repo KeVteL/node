@@ -358,34 +358,71 @@ char *ft_print(struct vnode *n)
  * @param cnt 
  * @return int 
  */
+ bool hmmErr = false;
+ int hack, hack1 = 0;
 int ft4222_read(struct vnode *n, struct sample *const smps[], unsigned cnt)
 {
 	struct ft4222 *u = (struct ft4222 *)n->_vd;
+		Logger log = logging.get("node:ft4222");
 
 	//The libFT4222 internaly maintains its own buffer on the host computer that is supplied with the data from the FT4222h
 	//This function only needs to read out this buffer.
 
 	//0. Confirm that enough space is ready for the data.
-	const int needed_space = n->in.vectorize * u->channel_count * (3.0 / 2.0);
+	//const int needed_space = n->in.vectorize * u->channel_count * (3.0 / 2.0);
 
-	assert(cnt == n->in.vectorize);													   //Enough samples
-	assert(smps[0]->capacity >= u->channel_count);									   //Large enough samples
-	assert((float)needed_space == (n->in.vectorize * u->channel_count * (3.0 / 2.0))); //This confirms that there will be no sample that is split between this read and the next one
+	//assert(cnt == n->in.vectorize);													   //Enough samples
+	//assert(smps[0]->capacity >= u->channel_count);									   //Large enough samples
+	//assert((float)needed_space == (n->in.vectorize * u->channel_count * (3.0 / 2.0))); //This confirms that there will be no sample that is split between this read and the next one
 
 	//1. Confirm that there is enough data in the libft4222 buffer to get 100 smp packages
-	uint16_t available_space;
-	do
+	uint16_t data_in_buffer;
+	
+	/*do
 	{
 		FT4222_SPISlave_GetRxStatus(u->dev_handle, &available_space);
 		//n->logger->debug("Data in buffer: {}",available_space);
 	} while (available_space <= needed_space);
+*/
+
+	FT4222_SPISlave_GetRxStatus(u->dev_handle, &data_in_buffer);
+	
+	
+	if(++hack%1 == 0){
+			log->debug("start Data in buffer: {}\n", data_in_buffer);
+	}
+	
+	//if(data_in_buffer <= needed_space){
+	//	return 0; //Trywait
+	//}
 
 	//2. Read out data and sort into sample packages
 	uint16 read_data;
-	uint8 buffer[needed_space];
-	FT4222_SPISlave_Read(u->dev_handle, buffer, (uint16)needed_space, &read_data);
-	assert(read_data == needed_space);
+	uint8 buffer[data_in_buffer];
+	if(data_in_buffer < u->channel_count * (3.0 / 2.0))
+		return 0;
 
+	/*if(data_in_buffer == 65535){
+		throw RuntimeError("whatever1");
+	}*/
+
+	uint16 toRead = (data_in_buffer>=1200)?1200:data_in_buffer;
+	FT4222_SPISlave_Read(u->dev_handle, buffer, toRead, &read_data);
+	cnt = (int)(toRead/u->channel_count/1.5);
+	//assert(read_data == toRead);
+
+
+	FT_STATUS tmpStat = FT4222_SPISlave_GetRxStatus(u->dev_handle, &data_in_buffer);
+
+	if (tmpStat != FT_OK ){
+		log->debug("FTERRRR\n\n");
+		throw RuntimeError("whatever");
+	}
+
+
+	if(++hack%1 == 0){
+			log->debug("end Data in buffer: {}\n", data_in_buffer);
+	}
 	for (size_t i = 0; i < cnt; i++) //Loop over all samples we want
 	{
 		struct sample *smp = smps[i];
@@ -403,7 +440,7 @@ int ft4222_read(struct vnode *n, struct sample *const smps[], unsigned cnt)
 			{
 				short a = (buffer[chan_start] << 4);
 				short b = (((buffer[chan_start + 1]) & 0xF0) >> 4);
-				smp->data[chan_index].f = a | b;
+				smp->data[chan_index].f = (float) (a | b);
 			}
 			else if (chan_allign == 1) //Bit 11 is in the middle of a buffer value
 			{
@@ -416,7 +453,15 @@ int ft4222_read(struct vnode *n, struct sample *const smps[], unsigned cnt)
 			}
 			u->raw_dumper->writeDataBinary(1, &(smp->data[chan_index].f));
 		}
-
+		if (hack > 100 && smp->data[2].f < 1 && !hmmErr) {
+			hmmErr = true;
+			log->debug("Something just went wrong!!\n\n\n");
+		}else if(hmmErr && hack1 < 100)
+			hack1++;
+		else if(hmmErr){
+			log->debug("Booom!!\n\n\n");
+			throw new RuntimeError("Big error");
+		}
 		smp->length = u->channel_count;
 		smp->signals = &n->in.signals;
 		smp->sequence = u->sequece++;
