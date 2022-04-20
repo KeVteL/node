@@ -35,6 +35,35 @@ void DecimateHook::start()
 	state = State::STARTED;
 }
 
+
+void DecimateHook::parseTimeString(std::string timeStr);
+
+	// split data into time and unit
+	int numMode = true;
+	std::string numStr, unitStr;
+
+	//remove leading spaces
+	while (timeStr[0] == ' ')
+	{
+		timeStr = timeStr.substr(1,timeStr.length() -1);
+	};
+
+	for (char c : timeStr)
+	{	
+		if(numMode){
+			//Write numbers and digits to numStri	
+			if(std::isdigit(c) || c == '.'){	
+				numStr += c;
+			}else{
+				numMode = false;
+			}
+		}else{
+			unitStr += c;
+		}
+	}
+
+}
+
 void DecimateHook::parse(json_t *json)
 {
 	int ret;
@@ -44,16 +73,37 @@ void DecimateHook::parse(json_t *json)
 
 	Hook::parse(json);
 
-	ret = json_unpack_ex(json, &err, 0, "{ s: i, s?: b }",
+	std::string everySI;
+	std::string allignSI;
+
+	ret = json_unpack_ex(json, &err, 0, "{ s: i, s?: b, s?:s, s?:s }",
 		"ratio", &ratio,
-		"renumber", &renumber
+		"renumber", &renumber,
+		"every", &everySI,
+		"allign",&allignSI
 	);
+
 	if (ret)
 		throw ConfigError(json, err, "node-config-hook-decimate");
+
+
+	//Todo: Parse everySI string.
+
+
+	//Todo: Parse allign string
+
+	//ToDo: make sure, either ratio or every string are supplied. Not both.
+
+
 
 	state = State::PARSED;
 }
 
+
+/*
+ToDo: Currently, the first sample that is let through by this hook is the 
+Sync String: 5m
+*/
 Hook::Reason DecimateHook::process(struct Sample *smp)
 {
 	assert(state == State::STARTED);
