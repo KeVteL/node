@@ -21,24 +21,24 @@ protected:
 	unsigned counter;
 	long every;
 	timespec lastSample;
-
-	// enum TimeScale{
-	// 	nS = 0,
-	// 	uS = 3,
-	// 	mS = 6,
-	// 	S = 9,
-	// 	m = 12,
-	// 	h = 12,
-	// 	d = 13
-	// };
+	 enum TimeUnit{
+	 	nS = 0,
+	 	uS = 3,
+	 	mS = 6,
+	 	S = 9,
+	 	m = 10,
+	 	h = 12,
+	 	d = 13
+	};
 
 	enum Mode{
 		RatioMode,
-		RatioAllignMode,
 		EveryMode,
+		RatioAllignMode,
 		EveryAllignMode
 	};
 
+	typedef std::tuple<double,TimeUnit> time_unit_tuple;
 
 public:
 	using LimitHook::LimitHook;
@@ -72,7 +72,7 @@ public:
 private:
 	DecimateHook::Mode pMode;
 
-	long parseTimeString(std::string) const;
+	time_unit_tuple parseTimeString(std::string) const;
 };
 
 } /* namespace node */
