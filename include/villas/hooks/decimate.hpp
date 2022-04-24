@@ -8,6 +8,7 @@
 #pragma once
 
 #include <villas/hook.hpp>
+#include <tuple>
 
 namespace villas {
 namespace node {
@@ -18,6 +19,26 @@ protected:
 	int ratio;
 	bool renumber;
 	unsigned counter;
+	long every;
+	timespec lastSample;
+
+	// enum TimeScale{
+	// 	nS = 0,
+	// 	uS = 3,
+	// 	mS = 6,
+	// 	S = 9,
+	// 	m = 12,
+	// 	h = 12,
+	// 	d = 13
+	// };
+
+	enum Mode{
+		RatioMode,
+		RatioAllignMode,
+		EveryMode,
+		EveryAllignMode
+	};
+
 
 public:
 	using LimitHook::LimitHook;
@@ -47,6 +68,11 @@ public:
 
 	virtual
 	Hook::Reason process(struct Sample *smp);
+
+private:
+	DecimateHook::Mode pMode;
+
+	long parseTimeString(std::string) const;
 };
 
 } /* namespace node */
