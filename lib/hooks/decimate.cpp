@@ -63,15 +63,17 @@ DecimateHook::time_unit_tuple DecimateHook::parseTimeString(std::string timeStr)
 	}
 	
 	double time = std::stod(numStr);
+	std::transform(unitStr.begin(), unitStr.end(), unitStr.begin(),[](unsigned char c){ return std::tolower(c); });
 	TimeUnit unit;
 
-	if(unitStr == "nS")
+
+	if(unitStr == "ns")
 		unit = nS;
 
-	if(unitStr == "uS")
+	if(unitStr == "us")
 		unit = uS;
 		
-	if(unitStr == "mS")
+	if(unitStr == "ms")
 		unit = mS;
 		
 	if(unitStr == "s")
@@ -116,11 +118,6 @@ void DecimateHook::parse(json_t *json)
 
 	if (ret)
 		throw ConfigError(json, err, "node-config-hook-decimate");
-
-
-	//opt 1: Ratio. Decreases the samplerate by a given ratio (Only every nth sample gets though)
-	//Opt 2: Every. Decreases the samplerate such that a sample gets though every X Sec. Mutually exclusive to Ratio.
-	//Opt 3: Allign. Can only be used with every. Selects the first sample that is let through.
 
 	//Ensure, only ratio or every or every + allign is supplied
 	if(ratio > 0 && everyStr != nullptr){
@@ -169,19 +166,55 @@ void DecimateHook::parse(json_t *json)
 	}
 
 	//Select allign
+	timespec_get(&lastSample,TIME_UTC);
 	if(allignStr != nullptr){
 		pMode = (Mode) (((int) pMode) + 2);
 		auto allignStrParsed = parseTimeString(allignStr);
-		
-	}else{
-		timespec_get(&lastSample,TIME_UTC);
+
+		if(std::get<0>(allignStrParsed) != (int) std::get<0>(allignStrParsed)){
+			throw ConfigError(json,"node-config-hook-decimate","Cant allign to fractions. Please use a smaller timescale.");
+		}
+
+		switch (std::get<1>(allignStrParsed))
+		{
+		case nS: //Alling to begin of next uS
+			lastSample.tv_nsec -= (lastSample.tv_nsec % 1000);
+			lastSample.tv_nsec += (int)std::get<0>(allignStrParsed);
+			break;
+		case uS: //Allign to begin of next mS
+			lastSample.tv_nsec -= (lastSample.tv_nsec % 1000000);
+			lastSample.tv_nsec += ((int)std::get<0>(allignStrParsed)*1000);
+			break;
+		case mS://Allign to begin of next S
+			lastSample.tv_nsec -= 0;
+			lastSample.tv_nsec += (int)std::get<0>(allignStrParsed);
+			break;
+		case S://Allign to beginn of next min
+			lastSample.tv_nsec = 0;
+			lastSample.tv_sec -= (lastSample.tv_sec % 60);
+			lastSample.tv_sec += (int)std::get<0>(allignStrParsed);
+			break;
+		case m://Allign to begin of next h
+			lastSample.tv_nsec = 0;
+			lastSample.tv_sec -= (lastSample.tv_sec % (60*60));
+			lastSample.tv_sec += (int)std::get<0>(allignStrParsed);
+			break;
+		case h://Allign to begin of next d
+			lastSample.tv_nsec = 0;
+			lastSample.tv_sec -= (lastSample.tv_sec % (60*60*24));
+			lastSample.tv_sec += (int)std::get<0>(allignStrParsed);
+			break;
+		case d:
+			throw ConfigError(json,"node-config-hook-decimate","Cant allign to days. Please choose a smaller time unit.");
+			break;
+		default:
+			throw ConfigError(json,"node-config-hook-decimate","Failed to parse 'Every' String.");
+			break;
+		}		
 	}
 
 	if(pMode == RatioAllignMode)
 		throw ConfigError(json,"node-config-hook-decimate","Ratio allign is not yet implemented.");
-	if(pMode == EveryAllignMode)
-		throw ConfigError(json,"node-config-hook-decimate","Ratio allign is not yet implemented.");
-
 	state = State::PARSED;
 }
 
@@ -206,7 +239,7 @@ Hook::Reason DecimateHook::process(struct Sample *smp)
 	}
 
 	//Mode: Every
-	if(pMode == EveryMode){
+	if(pMode == EveryMode || pMode == EveryAllignMode){
 		logger->debug("Every");
 		if(((smp->ts.origin.tv_sec * 1E9 +  smp->ts.origin.tv_nsec) - ( lastSample.tv_sec*1E9 + lastSample.tv_nsec)) < every){
 			return Reason::SKIP_SAMPLE;
@@ -214,9 +247,9 @@ Hook::Reason DecimateHook::process(struct Sample *smp)
 	}
 
 	//Mode: Every Allign
-	if(pMode == EveryAllignMode){
-		throw RuntimeError("Not Implemented yet!");
-	}
+	//if(pMode == EveryAllignMode){
+	//	throw RuntimeError("Not Implemented yet!");
+	//}
 	
 
 	lastSample = smp->ts.origin;
