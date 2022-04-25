@@ -22,7 +22,7 @@ void DecimateHook::start()
 
 
 
-DecimateHook::time_unit_tuple DecimateHook::parseTimeString(std::string timeStr) const
+long DecimateHook::parseTimeString(std::string timeStr) const
 {
 	int numMode = true;
 	std::string numStr, unitStr;
@@ -47,35 +47,34 @@ DecimateHook::time_unit_tuple DecimateHook::parseTimeString(std::string timeStr)
 		}
 	}
 	
-	double time = std::stod(numStr);
-	TimeUnit unit;
+	long timeInNS = std::stod(numStr);
 
 	if(unitStr == "nS")
-		unit = nS;
+		timeInNS = timeInNS * pow(10,0);
 
 	if(unitStr == "uS")
-		unit = uS;
+		timeInNS = timeInNS * pow(10,3);
 		
 	if(unitStr == "mS")
-		unit = mS;
+		timeInNS = timeInNS * pow(10,6);
 		
 	if(unitStr == "s")
-		unit = S;
+		timeInNS = timeInNS * pow(10,9);
 		
 	if(unitStr == "m")
-		unit = m;
+		timeInNS = timeInNS * 6 * pow(10,10);
 		
 	if(unitStr == "h")
-		unit = h;
+		timeInNS = timeInNS * 3.6 * pow(10,12);
 	
 	if(unitStr == "d")
-		unit = d;
+		timeInNS = timeInNS * 8.64 * pow(10,14);
 
 	if(unitStr == ""){
 		throw new RuntimeError("No Unit supplied");
 	}
 
-	return std::make_tuple(time,unit);
+	return timeInNS;
 
 }
 
@@ -104,7 +103,7 @@ void DecimateHook::parse(json_t *json)
 
 
 	//opt 1: Ratio. Decreases the samplerate by a given ratio (Only every nth sample gets though)
-	//Opt 2: Every. Decreases the samplerate such that a sample gets though every X Sec. Mutually exclusive to Ratio.
+	//Opt 2: Every. Decreases the samplerate such that a sample gets though every X Sec.
 	//Opt 3: Allign. Can only be used with every. Selects the first sample that is let through.
 
 	//Ensure, only ratio or every or every + allign is supplied
@@ -116,61 +115,25 @@ void DecimateHook::parse(json_t *json)
 	if(ratio > 0){
 		pMode = RatioMode;
 	}
+	if(ratio > 0 && allignStr != nullptr){
+		pMode = RatioAllignMode;
+		throw ConfigError(json,"node-config-hook-decimate","Ratio allign is not yet implemented.");
+	}
 	if(everyStr != nullptr){
 		pMode = EveryMode;
-		auto everyStrParsed = parseTimeString(everyStr);
-		double everyD = std::get<0>(everyStrParsed);
-		switch (std::get<1>(everyStrParsed))
-		{
-		case nS:
-			everyD *= 1;
-			break;
-		case uS:
-			everyD *= 1E3;
-			break;
-		case mS:
-			everyD *= 1E6;
-			break;
-		case S:
-			everyD *= 1E9;
-			break;
-		case m:
-			everyD *= 6E10;
-			break;
-		case h:
-			everyD *= 3.6E12;
-			break;
-		case d:
-			everyD *= 8.64E13;
-			break;
-		default:
-			throw ConfigError(json,"node-config-hook-decimate","Failed to parse 'Every' String.");
-			break;
-		}
-		if(everyD != (long) everyD){
-			throw ConfigError(json,"node-config-hook-decimate","Cant use time steps < 1nS. Please increase");
-		}
-		every = (long) everyD;
+		every = parseTimeString(everyStr);
 	}
 
-	//Select allign
-	if(allignStr != nullptr){
-		pMode = (Mode) (((int) pMode) + 2);
-		auto allignStrParsed = parseTimeString(allignStr);
-		
-	}else{
-		timespec_get(&lastSample,TIME_UTC);
-	}
-
-	if(pMode == RatioAllignMode)
-		throw ConfigError(json,"node-config-hook-decimate","Ratio allign is not yet implemented.");
-	if(pMode == EveryAllignMode)
-		throw ConfigError(json,"node-config-hook-decimate","Ratio allign is not yet implemented.");
+	timespec_get(&lastSample,TIME_UTC);
 
 	state = State::PARSED;
 }
 
 
+/*
+ToDo: Currently, the first sample that is let through by this hook is the first one that is 
+Sync String: 5m
+*/
 Hook::Reason DecimateHook::process(struct Sample *smp)
 {
 	assert(state == State::STARTED);
