@@ -240,6 +240,11 @@ int villas::node::uldaq_init(NodeCompat *n)
 
 	u->in.flags = AINSCAN_FF_DEFAULT;
 
+	u->in.trig_smp_count = 1;
+
+	u->in.buf_active = 0;
+
+
 	ret = pthread_mutex_init(&u->in.mutex, nullptr);
 	if (ret)
 		return ret;
@@ -290,10 +295,10 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 		"interface_type", &interface_type,
 		"device_id", &u->device_id,
 		"in",
-			"signals", &json_signals,
-			"sample_rate", &u->in.sample_rate,
-			"range", &default_range_str,
-			"input_mode", &default_input_mode_str,
+		"signals", &json_signals,
+		"sample_rate", &u->in.sample_rate,
+		"range", &default_range_str,
+		"input_mode", &default_input_mode_str,
 		"external_trigger", &json_ext_trigger
 	);
 	if (ret)
@@ -334,7 +339,7 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 			input_mode_str = default_input_mode_str;
 
 		if (channel < 0)
-			channel = i;
+			channel = 0;
 
 		if (!range_str)
 			throw ConfigError(json_signal, err, "node-config-node-uldaq-signal", "No input range specified for signal {}.", i);
@@ -362,17 +367,22 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 		u->external_trigger.level = 10; //Random values
 		u->external_trigger.variance=2.0;
 		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_EXTTRIGGER ); //set the scan options to use external triggers
-		json_unpack_ex(json_ext_trigger, &err, 0, "{s:i,s?:F,:s?:F}",
-		 "channel",&(u->external_trigger.channel),
-		 "level",&(u->external_trigger.level),
-		 "variance",&(u->external_trigger.variance)
+		ret = json_unpack_ex(json_ext_trigger, &err, 0, "{ s:i, s?:F, s?:F, s?: i }",
+			"channel",&(u->external_trigger.channel),
+			"level",&(u->external_trigger.level),
+			"variance",&(u->external_trigger.variance),
+			"smp_count", &(u->in.trig_smp_count)
 		);
+
+		if (u->in.trig_smp_count < 0)
+			throw ConfigError(json_signal, err, "node-config-node-uldaq-signal", "Sample count must be greater than 0 but {} given.", u->in.trig_smp_count);
+
 
 		if (ret)
 			throw ConfigError(json, err, "node-config-node-uldaq-external_trigger");
 
-		if (n->in.vectorize < u->in.channel_count * u->in.sample_rate)
-				throw ConfigError(json, err, "node-config-node-uldaq-signal", "Vectorize too small to hold an entire second of data. Please disable the external trigger or increase vectorize.");
+		if (n->in.vectorize < u->in.trig_smp_count)
+			throw ConfigError(json, err, "node-config-node-uldaq-signal", "Vectorize too small to hold an entire second of data. Please disable the external trigger or increase vectorize.");
 	}else{
 		u->external_trigger.active = false;
 	}
@@ -516,6 +526,17 @@ void uldaq_data_available(DaqDeviceHandle device_handle, DaqEventType event_type
 
 	pthread_mutex_unlock(&u->in.mutex);
 
+	if (u->external_trigger.active) {
+		/* Start the acquisition */
+		int smpsToRead = (u->external_trigger.active)?u->in.trig_smp_count:u->in.buffer_len / u->in.channel_count;
+		err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, smpsToRead, &u->in.sample_rate, u->in.scan_options, u->in.flags, (u->in.buf_active++ & 1)?u->in.buffer_high : u->in.buffer_low );
+		if (err != ERR_NO_ERROR) {
+			char buf[ERR_MSG_LEN];
+			ulGetErrMsg(err, buf);
+			throw RuntimeError("Failed to start acquisition on DAQ device: {}", buf);
+		}
+	}
+
 	/* Signal uldaq_read() about new data */
 	pthread_cond_signal(&u->in.cv);
 }
@@ -531,9 +552,10 @@ int villas::node::uldaq_start(NodeCompat *n)
 	UlError err;
 
 	/* Allocate a buffer to receive the data */
-	u->in.buffer_len = u->in.channel_count * n->in.vectorize * 50;
-	u->in.buffer = new double[u->in.buffer_len];
-	if (!u->in.buffer)
+	u->in.buffer_len = u->in.channel_count * n->in.vectorize * 10;
+	u->in.buffer_low = new double[u->in.buffer_len];
+	u->in.buffer_high = new double[u->in.buffer_len];
+	if (!u->in.buffer_low || !u->in.buffer_high)
 		throw MemoryAllocationError();
 
 	ret = uldaq_connect(n);
@@ -555,7 +577,7 @@ int villas::node::uldaq_start(NodeCompat *n)
 	if (u->external_trigger.active) {
 		//unsigned int samplePerSecond = u->in.channel_count * u->in.sample_rate;
 		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
-		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
+		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,10);
 
 		if (err != ERR_NO_ERROR) {
 			char buf[ERR_MSG_LEN];
@@ -565,7 +587,8 @@ int villas::node::uldaq_start(NodeCompat *n)
 	}
 
 	/* Start the acquisition */
-	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.buffer_len / u->in.channel_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer);
+	int smpsToRead = (u->external_trigger.active)?u->in.trig_smp_count:u->in.buffer_len / u->in.channel_count;
+	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, smpsToRead, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer_low);
 	if (err != ERR_NO_ERROR) {
 		char buf[ERR_MSG_LEN];
 		ulGetErrMsg(err, buf);
@@ -631,8 +654,9 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 
 	pthread_mutex_lock(&u->in.mutex);
 
-	if (u->in.status != SS_RUNNING)
-		return -1;
+	//@todo what was this for in continuus mode?
+	// if (u->in.status != SS_RUNNING)
+	// 	return -1;
 
 	size_t start_index = u->in.buffer_pos;
 
@@ -641,33 +665,34 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 		pthread_cond_wait(&u->in.cv, &u->in.mutex);
 
 	timespec timestamp;
-	timespec_get(&timestamp,TIME_UTC);
+	timespec_get(&timestamp,TIME_UTC); // @todo this is dangerous since we could be off with the time and that could cause a second jump
 
+	double* buf_ptr = u->in.buffer_low;
 	if (u->external_trigger.active) {
-		if (cnt < u->in.channel_count * u->in.sample_rate)
-			throw RuntimeError("Requested vectorize size {} for an entire second is larger then vectorize {}. Please increase vectorize in the config file.",
-					u->in.channel_count * u->in.sample_rate,
-					cnt );
-		cnt = u->in.channel_count * u->in.sample_rate;
+		if (u->in.buf_active & 1)
+			buf_ptr = u->in.buffer_high;
+		start_index = 0; //force start index to 0 since we are not having a ring buffer
 	}
-
 
 	for (unsigned j = 0; j < cnt; j++) {
 		struct Sample *smp = smps[j];
 
-		timestamp.tv_nsec = 1E9 / u->in.sample_rate * j;
 		long long scan_index = start_index + j * u->in.channel_count;
 
 		for (unsigned i = 0; i < u->in.channel_count; i++) {
 			long long channel_index = (scan_index + i) % u->in.buffer_len;
-			smp->data[i].f = u->in.buffer[channel_index];
+			smp->data[i].f = buf_ptr[channel_index];
 		}
 
 		smp->length = u->in.channel_count;
 		smp->signals = n->getInputSignals(false);
 		smp->sequence = u->sequence++;
-		if (u->external_trigger.active)
+
+		if (u->external_trigger.active){
+			timestamp.tv_nsec = 1E9 / u->in.sample_rate * j; // only timestamp if ext trigger is used
 			smp->ts.origin = timestamp;
+		}
+
 		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0));
 	}
 

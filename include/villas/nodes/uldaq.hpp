@@ -39,7 +39,8 @@ struct uldaq {
 
 	struct {
 		double sample_rate;
-		double *buffer;
+		double *buffer_low;
+		double *buffer_high;
 		size_t buffer_len;
 		size_t buffer_pos;
 		size_t channel_count;
@@ -51,6 +52,8 @@ struct uldaq {
 
 		pthread_mutex_t mutex;
 		pthread_cond_t cv;
+		unsigned buf_active; // mask with 1 then 0 -> low buffer, 1 -> high_buffer
+		unsigned trig_smp_count; // number of samples to read when triggered
 	} in;
 
 	struct {
