@@ -356,7 +356,8 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 	}
 
 	//External trigger
-	if(!json_is_null(json_ext_trigger)){
+
+	if (!json_is_null(json_ext_trigger)) {
 		u->external_trigger.active = true;
 		u->external_trigger.level = 10; //Random values
 		u->external_trigger.variance=2.0;
@@ -366,8 +367,12 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 		 "level",&(u->external_trigger.level),
 		 "variance",&(u->external_trigger.variance)
 		);
+
 		if (ret)
 			throw ConfigError(json, err, "node-config-node-uldaq-external_trigger");
+
+		if (n->in.vectorize < u->in.channel_count * u->in.sample_rate)
+				throw ConfigError(json, err, "node-config-node-uldaq-signal", "Vectorize too small to hold an entire second of data. Please disable the external trigger or increase vectorize.");
 	}else{
 		u->external_trigger.active = false;
 	}
@@ -548,9 +553,7 @@ int villas::node::uldaq_start(NodeCompat *n)
 
 	/* Setup external trigger if needed */
 	if (u->external_trigger.active) {
-//		unsigned int samplePerSecond = u->in.channel_count * u->in.sample_rate;
-
-
+		//unsigned int samplePerSecond = u->in.channel_count * u->in.sample_rate;
 		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
 		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
 
@@ -563,7 +566,6 @@ int villas::node::uldaq_start(NodeCompat *n)
 
 	/* Start the acquisition */
 	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.buffer_len / u->in.channel_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer);
-	//err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, 10, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer);
 	if (err != ERR_NO_ERROR) {
 		char buf[ERR_MSG_LEN];
 		ulGetErrMsg(err, buf);
