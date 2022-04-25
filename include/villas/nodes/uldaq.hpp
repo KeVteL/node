@@ -30,6 +30,12 @@ struct uldaq {
 	DaqDeviceInterface device_interface_type;
 
 	uint64_t sequence;
+	struct {
+		bool active = false;
+		int channel;
+		double variance;
+		double level;
+	} external_trigger;
 
 	struct {
 		double sample_rate;
@@ -37,7 +43,6 @@ struct uldaq {
 		size_t buffer_len;
 		size_t buffer_pos;
 		size_t channel_count;
-
 		ScanOption scan_options;
 		AInScanFlag flags;
 		AiQueueElement *queues;

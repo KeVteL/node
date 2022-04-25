@@ -234,7 +234,15 @@ int villas::node::uldaq_init(NodeCompat *n)
 
 	u->in.queues = nullptr;
 	u->in.sample_rate = 1000;
-	u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_CONTINUOUS);
+
+	if(u->external_trigger.active){
+		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_RETRIGGER);
+	}
+	else
+	{
+		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_CONTINUOUS);
+	}
+	
 	u->in.flags = AINSCAN_FF_DEFAULT;
 
 	ret = pthread_mutex_init(&u->in.mutex, nullptr);
@@ -276,19 +284,23 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 	const char *default_input_mode_str = nullptr;
 	const char *interface_type = nullptr;
 
+
 	size_t i;
 	json_t *json_signals;
 	json_t *json_signal;
+	json_t *json_ext_trigger;
 	json_error_t err;
 
-	ret = json_unpack_ex(json, &err, 0, "{ s?: s, s?: s, s: { s: o, s: F, s?: s, s?: s } }",
+	ret = json_unpack_ex(json, &err, 0, "{ s?: s, s?: s,s?:b ,s: { s: o, s: F, s?: s, s?: s }, s?: o }",
 		"interface_type", &interface_type,
 		"device_id", &u->device_id,
 		"in",
 			"signals", &json_signals,
 			"sample_rate", &u->in.sample_rate,
 			"range", &default_range_str,
-			"input_mode", &default_input_mode_str
+			"input_mode", &default_input_mode_str,
+			"external_trigger",&u->external_trigger,
+		"external_trigger", &json_ext_trigger
 	);
 	if (ret)
 		throw ConfigError(json, err, "node-config-node-uldaq");
@@ -347,6 +359,22 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 		u->in.queues[i].range = (Range) range;
 		u->in.queues[i].inputMode = (AiInputMode) input_mode;
 		u->in.queues[i].channel = channel;
+	}
+
+	//External trigger
+	if(!json_is_null(json_ext_trigger)){
+		u->external_trigger.active = true;
+		u->external_trigger.level = 10; //Random values
+		u->external_trigger.variance=2.0; 
+		json_unpack_ex(json_ext_trigger, &err, 0, "{s:i,s?:F,:s?:F}",
+		 "channel",&(u->external_trigger.channel),
+		 "level",&(u->external_trigger.level),
+		 "variance",&(u->external_trigger.variance)
+		);
+		if (ret)
+			throw ConfigError(json, err, "node-config-node-uldaq-external_trigger");
+	}else{
+		u->external_trigger.active = false;
 	}
 
 	return ret;
@@ -518,6 +546,12 @@ int villas::node::uldaq_start(NodeCompat *n)
 
 	/* Enable the event to be notified every time samples are available */
 	err = ulEnableEvent(u->device_handle, DE_ON_DATA_AVAILABLE, n->in.vectorize, uldaq_data_available, n);
+
+	/* Setup external trigger if needed */
+	if(u->external_trigger.active){
+		int samplePerSecond = u->in.channel_count * u->in.sample_rate;
+		err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,samplePerSecond);
+	}
 
 	/* Start the acquisition */
 	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.buffer_len / u->in.channel_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer);
