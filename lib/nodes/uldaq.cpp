@@ -237,7 +237,7 @@ int villas::node::uldaq_init(NodeCompat *n)
 
 	u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_CONTINUOUS);
 
-	
+
 	u->in.flags = AINSCAN_FF_DEFAULT;
 
 	ret = pthread_mutex_init(&u->in.mutex, nullptr);
@@ -360,7 +360,7 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 		u->external_trigger.active = true;
 		u->external_trigger.level = 10; //Random values
 		u->external_trigger.variance=2.0;
-		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_RETRIGGER); //set the scan options to use external triggers
+		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_EXTTRIGGER ); //set the scan options to use external triggers
 		json_unpack_ex(json_ext_trigger, &err, 0, "{s:i,s?:F,:s?:F}",
 		 "channel",&(u->external_trigger.channel),
 		 "level",&(u->external_trigger.level),
@@ -540,16 +540,30 @@ int villas::node::uldaq_start(NodeCompat *n)
 		throw RuntimeError("Failed to load input queue to DAQ device");
 
 	/* Enable the event to be notified every time samples are available */
-	err = ulEnableEvent(u->device_handle, DE_ON_DATA_AVAILABLE, n->in.vectorize, uldaq_data_available, n);
+	DaqEventType event = DE_ON_DATA_AVAILABLE;
+	if (u->external_trigger.active)
+		event = DE_ON_END_OF_INPUT_SCAN;
+
+	err = ulEnableEvent(u->device_handle, event, n->in.vectorize, uldaq_data_available, n);
 
 	/* Setup external trigger if needed */
-	if(u->external_trigger.active){
-		int samplePerSecond = u->in.channel_count * u->in.sample_rate;
-		err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,samplePerSecond);
+	if (u->external_trigger.active) {
+//		unsigned int samplePerSecond = u->in.channel_count * u->in.sample_rate;
+
+
+		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
+		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
+
+		if (err != ERR_NO_ERROR) {
+			char buf[ERR_MSG_LEN];
+			ulGetErrMsg(err, buf);
+			throw RuntimeError("Failed to set trigger on DAQ device: {}", buf);
+		}
 	}
 
 	/* Start the acquisition */
 	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.buffer_len / u->in.channel_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer);
+	//err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, 10, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer);
 	if (err != ERR_NO_ERROR) {
 		char buf[ERR_MSG_LEN];
 		ulGetErrMsg(err, buf);
@@ -609,6 +623,8 @@ int villas::node::uldaq_stop(NodeCompat *n)
 
 int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsigned cnt)
 {
+
+
 	auto *u = n->getData<struct uldaq>();
 
 	pthread_mutex_lock(&u->in.mutex);
@@ -622,21 +638,35 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 	if (start_index + n->in.vectorize * u->in.channel_count > u->in.transfer_status.currentTotalCount)
 		pthread_cond_wait(&u->in.cv, &u->in.mutex);
 
+	timespec timestamp;
+	timespec_get(&timestamp,TIME_UTC);
+
+	if (u->external_trigger.active) {
+		if (cnt < u->in.channel_count * u->in.sample_rate)
+			throw RuntimeError("Requested vectorize size {} for an entire second is larger then vectorize {}. Please increase vectorize in the config file.",
+					u->in.channel_count * u->in.sample_rate,
+					cnt );
+		cnt = u->in.channel_count * u->in.sample_rate;
+	}
+
+
 	for (unsigned j = 0; j < cnt; j++) {
 		struct Sample *smp = smps[j];
 
+		timestamp.tv_nsec = 1E9 / u->in.sample_rate * j;
 		long long scan_index = start_index + j * u->in.channel_count;
 
 		for (unsigned i = 0; i < u->in.channel_count; i++) {
 			long long channel_index = (scan_index + i) % u->in.buffer_len;
-
 			smp->data[i].f = u->in.buffer[channel_index];
 		}
 
 		smp->length = u->in.channel_count;
 		smp->signals = n->getInputSignals(false);
 		smp->sequence = u->sequence++;
-		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA;
+		if (u->external_trigger.active)
+			smp->ts.origin = timestamp;
+		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0));
 	}
 
 	u->in.buffer_pos += u->in.channel_count * cnt;
