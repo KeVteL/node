@@ -235,13 +235,8 @@ int villas::node::uldaq_init(NodeCompat *n)
 	u->in.queues = nullptr;
 	u->in.sample_rate = 1000;
 
-	if(u->external_trigger.active){
-		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_RETRIGGER);
-	}
-	else
-	{
-		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_CONTINUOUS);
-	}
+	u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_CONTINUOUS);
+
 	
 	u->in.flags = AINSCAN_FF_DEFAULT;
 
@@ -364,7 +359,8 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 	if(!json_is_null(json_ext_trigger)){
 		u->external_trigger.active = true;
 		u->external_trigger.level = 10; //Random values
-		u->external_trigger.variance=2.0; 
+		u->external_trigger.variance=2.0;
+		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_RETRIGGER); //set the scan options to use external triggers
 		json_unpack_ex(json_ext_trigger, &err, 0, "{s:i,s?:F,:s?:F}",
 		 "channel",&(u->external_trigger.channel),
 		 "level",&(u->external_trigger.level),
