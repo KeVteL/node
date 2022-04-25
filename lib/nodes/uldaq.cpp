@@ -291,7 +291,7 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 	json_t *json_ext_trigger;
 	json_error_t err;
 
-	ret = json_unpack_ex(json, &err, 0, "{ s?: s, s?: s,s?:b ,s: { s: o, s: F, s?: s, s?: s }, s?: o }",
+	ret = json_unpack_ex(json, &err, 0, "{ s?: s, s?: s, s: { s: o, s: F, s?: s, s?: s }, s?: o }",
 		"interface_type", &interface_type,
 		"device_id", &u->device_id,
 		"in",
@@ -299,7 +299,6 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 			"sample_rate", &u->in.sample_rate,
 			"range", &default_range_str,
 			"input_mode", &default_input_mode_str,
-			"external_trigger",&u->external_trigger,
 		"external_trigger", &json_ext_trigger
 	);
 	if (ret)
