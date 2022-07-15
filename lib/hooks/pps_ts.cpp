@@ -24,9 +24,9 @@ protected:
 	} mode;
 
 	uint64_t lastSequence;
-
 	double lastValue;
 	double threshold;
+<<<<<<< Updated upstream
 
 	bool isSynced;
 	bool isLocked;
@@ -35,6 +35,12 @@ protected:
 	double periodEstimate;		/**< In seconds */
 	double periodErrorCompensation;	/**< In seconds */
 	double period;			/**< In seconds */
+=======
+	int decimation_factor;
+	time_point<system_clock, nanoseconds> tsVirt;
+	nanoseconds period;	/**< In nanoseconds */
+	int initalSmpRate;
+>>>>>>> Stashed changes
 	uintmax_t cntEdges;
 	uintmax_t cntSmps;
 	uintmax_t cntSmpsTotal;
@@ -50,12 +56,18 @@ public:
 		lastSequence(0),
 		lastValue(0),
 		threshold(1.5),
+<<<<<<< Updated upstream
 		isSynced(false),
 		isLocked(false),
 		timeError(0.0),
 		periodEstimate(0.0),
 		periodErrorCompensation(0.0),
 		period(0.0),
+=======
+		decimation_factor(1),
+		period(1s),
+		initalSmpRate(1),
+>>>>>>> Stashed changes
 		cntEdges(0),
 		cntSmps(0),
 		cntSmpsTotal(0),
@@ -65,6 +77,17 @@ public:
 		filterWindow(horizonEstimation + 1, 0)
 	{ }
 
+<<<<<<< Updated upstream
+=======
+	virtual void prepare()
+	{
+		SingleSignalHook::prepare();
+
+		for (size_t i = 0; i < (size_t)horizonEstimation; i++)
+			filterWindow.push_back(0);
+	}
+
+>>>>>>> Stashed changes
 	virtual void parse(json_t *json)
 	{
 		int ret;
@@ -93,8 +116,11 @@ public:
 		if (mode_str) {
 			if (!strcmp(mode_str, "simple"))
 				mode = Mode::SIMPLE;
+<<<<<<< Updated upstream
 			else if (!strcmp(mode_str, "horizon"))
 				mode = Mode::HORIZON;
+=======
+>>>>>>> Stashed changes
 			else
 				throw ConfigError(json, "node-config-hook-pps_ts-mode", "Unsupported mode: {}", mode_str);
 		}
