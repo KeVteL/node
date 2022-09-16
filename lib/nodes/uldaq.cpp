@@ -235,10 +235,18 @@ int villas::node::uldaq_init(NodeCompat *n)
 	u->in.queues = nullptr;
 	u->in.sample_rate = 1000;
 
+
 	u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_CONTINUOUS);
 
 
+
+
 	u->in.flags = AINSCAN_FF_DEFAULT;
+
+	u->in.trig_smp_count = 1;
+
+	u->in.buf_active = 0;
+
 
 	u->in.trig_smp_count = 1;
 
@@ -285,13 +293,14 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 	const char *interface_type = nullptr;
 
 
+
 	size_t i;
 	json_t *json_signals;
 	json_t *json_signal;
-	json_t *json_ext_trigger;
+	json_t *json_ext_trigger = json_null();
 	json_error_t err;
 
-	ret = json_unpack_ex(json, &err, 0, "{ s?: s, s?: s, s: { s: o, s: F, s?: s, s?: s }, s?: o }",
+	ret = json_unpack_ex(json, &err, 0, "{ s?: s, s?: s, s: { s: o, s: F, s?: s, s?: s }, s?: o, s?: o }",
 		"interface_type", &interface_type,
 		"device_id", &u->device_id,
 		"in",
@@ -364,8 +373,9 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 
 	if (!json_is_null(json_ext_trigger)) {
 		u->external_trigger.active = true;
-		u->external_trigger.level = 10; //Random values
-		u->external_trigger.variance=2.0;
+		u->external_trigger.level = 5; //Random values
+		u->external_trigger.variance= 2.0;
+		u->external_trigger.channel = 0;
 		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_EXTTRIGGER ); //set the scan options to use external triggers
 		ret = json_unpack_ex(json_ext_trigger, &err, 0, "{ s:i, s?:F, s?:F, s?: i }",
 			"channel",&(u->external_trigger.channel),
@@ -411,6 +421,7 @@ char * villas::node::uldaq_print(NodeCompat *n)
 	}
 
 	buf = strcatf(&buf, ", in.sample_rate=%f", u->in.sample_rate);
+	buf = strcatf(&buf, ", external_trigger=%d", u->external_trigger.active);
 
 	return buf;
 }
@@ -576,8 +587,8 @@ int villas::node::uldaq_start(NodeCompat *n)
 	/* Setup external trigger if needed */
 	if (u->external_trigger.active) {
 		//unsigned int samplePerSecond = u->in.channel_count * u->in.sample_rate;
-		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
 		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,10);
+		err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
 
 		if (err != ERR_NO_ERROR) {
 			char buf[ERR_MSG_LEN];
@@ -650,19 +661,32 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 {
 
 
+
+
 	auto *u = n->getData<struct uldaq>();
 
 	pthread_mutex_lock(&u->in.mutex);
 
 	//@todo what was this for in continuus mode?
+	// //@todo what was this for in continuus mode?
 	// if (u->in.status != SS_RUNNING)
-	// 	return -1;
+	// // 	return -1;
 
 	size_t start_index = u->in.buffer_pos;
 
 	/* Wait for data available condition triggered by event callback */
 	if (start_index + n->in.vectorize * u->in.channel_count > u->in.transfer_status.currentTotalCount)
 		pthread_cond_wait(&u->in.cv, &u->in.mutex);
+
+	timespec timestamp;
+	timespec_get(&timestamp,TIME_UTC); // @todo this is dangerous since we could be off with the time and that could cause a second jump
+
+	double* buf_ptr = u->in.buffer_low;
+	if (u->external_trigger.active) {
+		if (u->in.buf_active & 1)
+			buf_ptr = u->in.buffer_high;
+		start_index = 0; //force start index to 0 since we are not having a ring buffer
+	}
 
 	timespec timestamp;
 	timespec_get(&timestamp,TIME_UTC); // @todo this is dangerous since we could be off with the time and that could cause a second jump
@@ -693,7 +717,13 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 			smp->ts.origin = timestamp;
 		}
 
-		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0));
+
+		if (u->external_trigger.active){
+			timestamp.tv_nsec = 1E9 / u->in.sample_rate * j; // only timestamp if ext trigger is used
+			smp->ts.origin = timestamp;
+		}
+
+		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0)) | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0));
 	}
 
 	u->in.buffer_pos += u->in.channel_count * cnt;
