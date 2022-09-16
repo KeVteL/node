@@ -35,6 +35,7 @@ struct uldaq {
 		int channel;
 		double variance;
 		double level;
+		double frequency;
 	} external_trigger;
 
 	struct {
