@@ -245,7 +245,7 @@ int villas::node::uldaq_init(NodeCompat *n)
 
 	u->in.trig_smp_count = 1;
 
-	u->in.buf_active = 0;
+	u->in.active_buffer = 0;
 
 
 	ret = pthread_mutex_init(&u->in.mutex, nullptr);
@@ -543,14 +543,14 @@ void uldaq_data_available(DaqDeviceHandle device_handle, DaqEventType event_type
 
 	//Display warning if the other buffer has not been read completely
 	if(u->in.buffer_pos != u->in.buffer_len){
-		n->logger.get()->warn("Backside buffer has not been read fully. Reduce sample rate.");
+		n->logger.get()->warn("Back buffer has not been read completely [Read: {} Buffer size: {}]. Reduce sample rate.",u->in.buffer_pos, u->in.buffer_len);
 	}
 
-	//Switch to other buffer
+	//Switch to other buffer when using external trigger
 	if (u->external_trigger.active) {
-		u->in.buf_active = (u->in.buf_active + 1) % 2;
+		u->in.active_buffer = (u->in.active_buffer + 1) % 2;
 		double * use_buffer = nullptr;
-		if(u->in.buf_active){
+		if(u->in.active_buffer){
 			use_buffer = u->in.buffer_low;
 		}else{
 			use_buffer = u->in.buffer_high;
@@ -692,19 +692,20 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 
 	size_t start_index = u->in.buffer_pos;
 
-	/* Wait for data available condition triggered by event callback */
-	if (start_index + n->in.vectorize * u->in.channel_count > u->in.transfer_status.currentTotalCount)
+	/* Check if there are enough available samples left to read and if not, wait for event callback to trigger new data available condition*/
+	size_t available_samples = (u->external_trigger.active)? u->in.buffer_len: u->in.transfer_status.currentTotalCount;
+	if (start_index + n->in.vectorize * u->in.channel_count > available_samples) 
 		pthread_cond_wait(&u->in.cv, &u->in.mutex);
 
 	timespec timestamp;
 	timespec_get(&timestamp,TIME_UTC); // @todo this is dangerous since we could be off with the time and that could cause a second jump
 
-
+	//Select the right buffer to read from
 	double* buf_ptr = u->in.buffer_low; 
-	if (u->external_trigger.active && ! u->in.buf_active)
+	if (u->external_trigger.active && ! u->in.active_buffer)
 		buf_ptr = u->in.buffer_high;
 
-
+	//Read cnt (vectorize) samples from the buffer
 	for (unsigned j = 0; j < cnt; j++) {
 		struct Sample *smp = smps[j];
 

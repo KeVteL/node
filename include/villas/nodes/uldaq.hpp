@@ -53,7 +53,7 @@ struct uldaq {
 
 		pthread_mutex_t mutex;
 		pthread_cond_t cv;
-		unsigned buf_active; // mask with 1 then 0 -> low buffer, 1 -> high_buffer
+		unsigned active_buffer; // mask with 1 then 0 -> low buffer, 1 -> high_buffer
 		unsigned trig_smp_count; // number of samples to read when triggered
 	} in;
 
