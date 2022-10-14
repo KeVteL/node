@@ -8,6 +8,7 @@
  *********************************************************************************/
 
 #include <cstring>
+#include <thread>
 
 #include <villas/config.hpp>
 #include <villas/node_compat.hpp>
@@ -15,7 +16,6 @@
 #include <villas/exceptions.hpp>
 #include <villas/node/memory.hpp>
 #include <villas/utils.hpp>
-#include <villas/queue_signalled.hpp>
 
 using namespace villas;
 using namespace villas::node;
@@ -236,26 +236,15 @@ int villas::node::uldaq_init(NodeCompat *n)
 	u->in.queues = nullptr;
 	u->in.sample_rate = 1000;
 
-
 	u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_CONTINUOUS);
 
-
-
-
 	u->in.flags = AINSCAN_FF_DEFAULT;
-
-	u->in.trig_smp_count = 1;
-
-	u->in.active_buffer = 1; //First acquisition written to low buffer. Therefore the -1th acqisition was the high buffer
-
 
 	ret = pthread_mutex_init(&u->in.mutex, nullptr);
 	if (ret)
 		return ret;
 
-	ret = pthread_cond_init(&u->in.cv, nullptr);
-	if (ret)
-		return ret;
+
 
 	return 0;
 }
@@ -272,9 +261,20 @@ int villas::node::uldaq_destroy(NodeCompat *n)
 	if (ret)
 		return ret;
 
-	ret = pthread_cond_destroy(&u->in.cv);
-	if (ret)
-		return ret;
+	while (queue_signalled_available(&u->in.empty_buckets)) {
+		double *bucket = nullptr;
+		ret = queue_signalled_pull(&u->in.empty_buckets,(void**) &bucket);
+		if (! ret)
+			return ret;
+	}
+
+	while (queue_signalled_available(&u->in.full_buckets)) {
+		double *bucket = nullptr;
+		ret = queue_signalled_pull(&u->in.full_buckets,(void**) &bucket);
+
+		if (! ret)
+			return ret;
+	}
 
 	return 0;
 }
@@ -287,8 +287,6 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 	const char *default_range_str = nullptr;
 	const char *default_input_mode_str = nullptr;
 	const char *interface_type = nullptr;
-
-
 
 	size_t i;
 	json_t *json_signals = json_null();
@@ -366,38 +364,33 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 		u->in.queues[i].channel = channel;
 	}
 
-	//External trigger
-
 	if (!json_is_null(json_ext_trigger)) {
+		//Default values
 		u->external_trigger.active = true;
-		u->external_trigger.level = 5; //Random values
+		u->external_trigger.level = 5;
 		u->external_trigger.variance= 2.0;
 		u->external_trigger.channel = 0;
-		u->external_trigger.frequency = 1; //Default pps
+		u->external_trigger.frequency = 1;
+		u->external_trigger.deadtime = 10;
 
 		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_EXTTRIGGER ); 
-		
-		int deadtime = 10;
-		
-		ret = json_unpack_ex(json_ext_trigger, &err, 0, "{ s:i, s?:F, s?:F, s?: F, s? i}",
+				
+		ret = json_unpack_ex(json_ext_trigger, &err, 0, "{ s:i, s?:F, s?:F, s?: F, s?: F}",
 			"channel",&(u->external_trigger.channel),
 			"level",&(u->external_trigger.level),
 			"variance",&(u->external_trigger.variance),
 			"trigger_frequency",&(u->external_trigger.frequency),
-			"deadtime", &(deadtime) //How many samples of deadtime at the end of the sampling interval to allow the system to rearm
+			"deadtime", &(u->external_trigger.deadtime) //How many samples of deadtime at the end of the sampling interval to allow the system to rearm
 		);
 
-		u->in.trig_smp_count = u->in.sample_rate * 1.0/u->external_trigger.frequency - deadtime;
+		u->in.trig_smp_count = u->in.sample_rate * ((1.0/u->external_trigger.frequency) - u->external_trigger.deadtime);
 
 		if (u->in.trig_smp_count < 0)
 			throw ConfigError(json_signal, err, "node-config-node-uldaq-signal", "Sample count must be greater than 0 but {} given.", u->in.trig_smp_count);
 
-
 		if (ret)
 			throw ConfigError(json, err, "node-config-node-uldaq-external_trigger");
 
-		//if (n->in.vectorize < u->in.trig_smp_count)
-		//	throw ConfigError(json, err, "node-config-node-uldaq-signal", "Vectorize too small to hold an entire second of data. Please disable the external trigger or increase vectorize.");
 	}else{
 		u->external_trigger.active = false;
 	}
@@ -530,81 +523,76 @@ found:		if (q->channel > max_channel)
 static
 void uldaq_data_available(DaqDeviceHandle device_handle, DaqEventType event_type, unsigned long long event_data, void *ctx)
 {
+	int ret = 0;
+
 	auto *n = (NodeCompat *) ctx;
 	auto *u = n->getData<struct uldaq>();
-
-	pthread_mutex_lock(&u->in.mutex);
 
 	UlError err;
 	err = ulAInScanStatus(device_handle, &u->in.status, &u->in.transfer_status);
 	if (err != ERR_NO_ERROR)
 		n->logger->warn("Failed to retrieve scan status in event callback");
 
-	pthread_mutex_unlock(&u->in.mutex);
+	//Write current write buffer to full buffers
+	ret = queue_signalled_push(&u->in.full_buckets,u->in.current_write_bucket);
+	n->logger->debug("Pushed {} to full buffers",((long)u->in.current_write_bucket));
 
-	//Display warning if the other buffer has not been read completely
-	if(u->in.buffer_pos != u->in.buffer_len){
-		n->logger.get()->warn("Back buffer has not been read completely [Read: {} Buffer size: {}]. Reduce sample rate.",u->in.buffer_pos, u->in.buffer_len);
-	}
+	if (! ret)
+		throw RuntimeError("Failed push to signalled queue");
 
-	//Switch to other buffer when using external trigger
-	if (u->external_trigger.active) {
-		u->in.active_buffer = (u->in.active_buffer + 1) % 2;
-		double * use_buffer = nullptr;
-		if(u->in.active_buffer){
-			use_buffer = u->in.buffer_low;
-		}else{
-			use_buffer = u->in.buffer_high;
-		}
+	//Grab new empty bucket from emtpy_buffer queue
+	ret = queue_signalled_pull(&u->in.empty_buckets, (void**)&u->in.current_write_bucket);	
+	n->logger->debug("Fetched {} from empty buffers",((long) u->in.current_write_bucket));
 	
-		/* Re-Start the acquisition */
-		n->logger->debug("Uldaq writing to buffer @{}",((long) use_buffer));
-		err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, use_buffer );
-		if (err != ERR_NO_ERROR) {
-			char buf[ERR_MSG_LEN];
-			ulGetErrMsg(err, buf);
-			throw RuntimeError("Failed to start acquisition on DAQ device: {}", buf);
-		}
-	}
+	if (! ret)
+		throw RuntimeError("Failed pull from signalled queue");
 
-	/* Signal uldaq_read() about new data */
-	if(u->external_trigger.active)
-		u->in.buffer_pos = 0;
-	pthread_cond_signal(&u->in.cv);
+	/* Re-Start the acquisition */
+	n->logger->debug("Uldaq writing to buffer @{}",((long) u->in.current_write_bucket));
+	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.current_write_bucket );
+	if (err != ERR_NO_ERROR) {
+		char buf[ERR_MSG_LEN];
+		ulGetErrMsg(err, buf);
+		throw RuntimeError("Failed to start acquisition on DAQ device: {}", buf);
+	}
 }
 
 int villas::node::uldaq_start(NodeCompat *n)
 {
 	auto *u = n->getData<struct uldaq>();
+	int ret = 0;
 
 	u->sequence = 0;
 	u->in.buffer_pos = 0;
 
-	int ret;
 	UlError err;
 
-	/* Allocate a buffer to receive the data */
-	u->in.buffer_len = u->in.channel_count * n->in.vectorize * 10; 
-	if ( u->external_trigger.active) {
-		//One buffer needs to be large enougth to hold an entire trigger interval of samples. The size is alligned to vectorize for comfort
-		u->in.buffer_len = u->in.trig_smp_count * u->in.channel_count;
-		u->in.buffer_len += n->in.vectorize * u->in.channel_count;
-		u->in.buffer_len = u->in.buffer_len - (u->in.buffer_len % n->in.vectorize * u->in.channel_count);
+	/* Allocate a buffers to receive the data */
+	size_t number_of_buffers = 10;
+	u->in.buffer_len = u->in.trig_smp_count;
+
+	ret = queue_signalled_init(&u->in.empty_buckets);
+	if (ret)
+		return ret;
+
+	ret = queue_signalled_init(&u->in.full_buckets);
+	if (ret)
+		return ret;
+		
+
+	for (size_t i = 0; i < number_of_buffers; i++) {
+		
+		double * empty_bucket = new double[u->in.buffer_len];
 	
-		u->in.buffer_pos = u->in.buffer_len; //
+		if(!empty_bucket)
+			throw MemoryAllocationError();
+		
+		ret = queue_signalled_push(&u->in.empty_buckets,empty_bucket);
+	
+		if ( ! ret)
+			throw RuntimeError("Failed push to signalled queue");
+
 	}
-	
-
-	u->in.buffer_low = new double[u->in.buffer_len];
-	u->in.buffer_high = new double[u->in.buffer_len];
-
-	
-	
-	n->logger->debug("Allocated buffer low @{}",((long) u->in.buffer_low));
-	n->logger->debug("Allocated buffer hi  @{}",((long) u->in.buffer_high));
-
-	if (!u->in.buffer_low || !u->in.buffer_high)
-		throw MemoryAllocationError();
 
 	ret = uldaq_connect(n);
 	if (ret)
@@ -623,8 +611,6 @@ int villas::node::uldaq_start(NodeCompat *n)
 
 	/* Setup external trigger if needed */
 	if (u->external_trigger.active) {
-		//unsigned int samplePerSecond = u->in.channel_count * u->in.sample_rate;
-		//err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,10);
 		err = ulAInSetTrigger(u->device_handle,TRIG_POS_EDGE,u->external_trigger.channel,u->external_trigger.level,u->external_trigger.variance,0);
 
 		if (err != ERR_NO_ERROR) {
@@ -635,9 +621,13 @@ int villas::node::uldaq_start(NodeCompat *n)
 	}
 
 	/* Start the acquisition */
-	int smpsToRead = (u->external_trigger.active)?u->in.trig_smp_count:u->in.buffer_len / u->in.channel_count;
-	n->logger->debug("Uldaq writing to buffer @{}",((long)u->in.buffer_low));
-	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, smpsToRead, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer_low);
+	if( !queue_signalled_pull(&u->in.empty_buckets,(void**)&u->in.current_write_bucket) ) 
+		throw RuntimeError("Failled pull from queue");
+
+	n->logger->debug("Uldaq scanning into buffer @{}",((long)u->in.current_write_bucket));
+	
+	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.current_write_bucket);
+	
 	if (err != ERR_NO_ERROR) {
 		char buf[ERR_MSG_LEN];
 		ulGetErrMsg(err, buf);
@@ -697,54 +687,64 @@ int villas::node::uldaq_stop(NodeCompat *n)
 
 int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsigned cnt)
 {
+	int ret = 0;
 	auto *u = n->getData<struct uldaq>();
 
-	pthread_mutex_lock(&u->in.mutex);
+
+	//Check if we need to grab a new filled buffer from the queue
+	if (u->in.current_read_bucket == nullptr) {
+		ret = queue_signalled_pull(&u->in.full_buckets,(void**) &(u->in.current_read_bucket)); //This is currently blocking: Easy transfer to pollFD by changing queue settings
+		if (! ret) 
+			throw RuntimeError("Failed queue signalled pull");
+	}
 
 	size_t start_index = u->in.buffer_pos;
 
-	/* Check if there are enough available samples left to read and if not, wait for event callback to trigger new data available condition*/
-	size_t available_samples = (u->external_trigger.active)? (u->in.buffer_len - u->in.buffer_pos): u->in.transfer_status.currentTotalCount;
-	if (start_index + n->in.vectorize * u->in.channel_count > available_samples) 
-		pthread_cond_wait(&u->in.cv, &u->in.mutex);
-
 	timespec timestamp;
-	timespec_get(&timestamp,TIME_UTC); // @todo this is dangerous since we could be off with the time and that could cause a second jump
+	timespec_get(&timestamp,TIME_UTC); // @todo this is dangerous since we could be off with the time and that could cause a second jump	
 
-	//Select the right buffer to read from
-	double* buf_ptr = u->in.buffer_low; 
-	if (u->external_trigger.active && ! u->in.active_buffer)
-		buf_ptr = u->in.buffer_high;
-	n->logger->debug("Reading from buffer @{}", (long) buf_ptr);
-
+	//Read either cnt or all remaining samples from the buffer
+	size_t remaining_samples = (u->in.buffer_len - u->in.buffer_pos);
+	size_t number_of_sample_packages = ( remaining_samples > cnt*u->in.channel_count )? cnt : (size_t) remaining_samples/u->in.channel_count;
+	
 	//Read cnt (vectorize) samples from the buffer
-	for (unsigned j = 0; j < cnt; j++) {
+	for (unsigned j = 0; j < number_of_sample_packages; j++) {
 		struct Sample *smp = smps[j];
 
 		long long scan_index = start_index + j * u->in.channel_count;
 
 		for (unsigned i = 0; i < u->in.channel_count; i++) {
 			long long channel_index = (scan_index + i) % u->in.buffer_len;
-			smp->data[i].f = buf_ptr[channel_index];
+			smp->data[i].f = u->in.current_read_bucket[channel_index];
 		}
 
 		smp->length = u->in.channel_count;
 		smp->signals = n->getInputSignals(false);
 		smp->sequence = u->sequence++;
 
-		if (u->external_trigger.active){
-			timestamp.tv_nsec = 1E9 / u->in.sample_rate * j; // only timestamp if ext trigger is used
-			smp->ts.origin = timestamp;
-		}
+		timestamp.tv_sec = 1; //TODO: find the right second
+		timestamp.tv_nsec = 1E9 / u->in.sample_rate * j; // only timestamp if ext trigger is used
+		smp->ts.origin = timestamp;
+
 
 		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0)) | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0));
 	}
 
-	u->in.buffer_pos += u->in.channel_count * cnt;
+	u->in.buffer_pos += u->in.channel_count * number_of_sample_packages;
 
-	pthread_mutex_unlock(&u->in.mutex);
+	//check if current_read_buffer has been read completely
+	if (u->in.buffer_pos >= u->in.buffer_len) {
+		ret = queue_signalled_push(&u->in.empty_buckets,u->in.current_read_bucket);
+		
+		if (! ret)
+			throw RuntimeError("Failed push to signalled queue");
+		
+		u->in.current_read_bucket = nullptr; //mark as read
+		u->in.buffer_pos = 0;
+	}
 
-	return cnt;
+
+	return number_of_sample_packages;
 }
 
 static NodeCompatType p;

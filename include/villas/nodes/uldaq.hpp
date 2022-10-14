@@ -22,6 +22,11 @@
 namespace villas {
 namespace node {
 
+struct sample_bucket{
+	double *sample_data;
+	timespec sample_time;
+};
+
 struct uldaq {
 	const char *device_id;
 
@@ -36,25 +41,33 @@ struct uldaq {
 		double variance;
 		double level;
 		double frequency;
+		double deadtime;
 	} external_trigger;
 
+	
 	struct {
 		double sample_rate;
-		double *buffer_low;
-		double *buffer_high;
+		unsigned trig_smp_count; // number of samples to read when triggered
+
 		size_t buffer_len;
 		size_t buffer_pos;
 		size_t channel_count;
+
 		ScanOption scan_options;
 		AInScanFlag flags;
 		AiQueueElement *queues;
-		ScanStatus status; // protected by mutex
-		TransferStatus transfer_status; // protected by mutex
+		ScanStatus status;
+		TransferStatus transfer_status; 
+
+		timespec sample_second;
 
 		pthread_mutex_t mutex;
-		pthread_cond_t cv;
-		unsigned active_buffer; // mask with 1 then 0 -> low buffer, 1 -> high_buffer
-		unsigned trig_smp_count; // number of samples to read when triggered
+		
+		CQueueSignalled empty_buckets;
+		CQueueSignalled full_buckets;
+
+		sample_bucket * current_read_bucket = nullptr;
+		sample_bucket * current_write_bucket = nullptr;
 	} in;
 
 	struct {
