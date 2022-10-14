@@ -15,6 +15,7 @@
 #include <villas/exceptions.hpp>
 #include <villas/node/memory.hpp>
 #include <villas/utils.hpp>
+#include <villas/queue_signalled.hpp>
 
 using namespace villas;
 using namespace villas::node;
@@ -245,7 +246,7 @@ int villas::node::uldaq_init(NodeCompat *n)
 
 	u->in.trig_smp_count = 1;
 
-	u->in.active_buffer = 0;
+	u->in.active_buffer = 1; //First acquisition written to low buffer. Therefore the -1th acqisition was the high buffer
 
 
 	ret = pthread_mutex_init(&u->in.mutex, nullptr);
@@ -555,8 +556,9 @@ void uldaq_data_available(DaqDeviceHandle device_handle, DaqEventType event_type
 		}else{
 			use_buffer = u->in.buffer_high;
 		}
-
+	
 		/* Re-Start the acquisition */
+		n->logger->debug("Uldaq writing to buffer @{}",((long) use_buffer));
 		err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, use_buffer );
 		if (err != ERR_NO_ERROR) {
 			char buf[ERR_MSG_LEN];
@@ -588,11 +590,19 @@ int villas::node::uldaq_start(NodeCompat *n)
 		u->in.buffer_len = u->in.trig_smp_count * u->in.channel_count;
 		u->in.buffer_len += n->in.vectorize * u->in.channel_count;
 		u->in.buffer_len = u->in.buffer_len - (u->in.buffer_len % n->in.vectorize * u->in.channel_count);
+	
+		u->in.buffer_pos = u->in.buffer_len; //
 	}
 	
-	
+
 	u->in.buffer_low = new double[u->in.buffer_len];
 	u->in.buffer_high = new double[u->in.buffer_len];
+
+	
+	
+	n->logger->debug("Allocated buffer low @{}",((long) u->in.buffer_low));
+	n->logger->debug("Allocated buffer hi  @{}",((long) u->in.buffer_high));
+
 	if (!u->in.buffer_low || !u->in.buffer_high)
 		throw MemoryAllocationError();
 
@@ -626,6 +636,7 @@ int villas::node::uldaq_start(NodeCompat *n)
 
 	/* Start the acquisition */
 	int smpsToRead = (u->external_trigger.active)?u->in.trig_smp_count:u->in.buffer_len / u->in.channel_count;
+	n->logger->debug("Uldaq writing to buffer @{}",((long)u->in.buffer_low));
 	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, smpsToRead, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.buffer_low);
 	if (err != ERR_NO_ERROR) {
 		char buf[ERR_MSG_LEN];
@@ -693,7 +704,7 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 	size_t start_index = u->in.buffer_pos;
 
 	/* Check if there are enough available samples left to read and if not, wait for event callback to trigger new data available condition*/
-	size_t available_samples = (u->external_trigger.active)? u->in.buffer_len: u->in.transfer_status.currentTotalCount;
+	size_t available_samples = (u->external_trigger.active)? (u->in.buffer_len - u->in.buffer_pos): u->in.transfer_status.currentTotalCount;
 	if (start_index + n->in.vectorize * u->in.channel_count > available_samples) 
 		pthread_cond_wait(&u->in.cv, &u->in.mutex);
 
@@ -704,6 +715,7 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 	double* buf_ptr = u->in.buffer_low; 
 	if (u->external_trigger.active && ! u->in.active_buffer)
 		buf_ptr = u->in.buffer_high;
+	n->logger->debug("Reading from buffer @{}", (long) buf_ptr);
 
 	//Read cnt (vectorize) samples from the buffer
 	for (unsigned j = 0; j < cnt; j++) {
