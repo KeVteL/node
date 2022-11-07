@@ -18,12 +18,13 @@
 
 #define ULDAQ_MAX_DEV_COUNT 100
 #define ULDAQ_MAX_RANGE_COUNT 8
+#define ULDAQ_NUM_SAMPLE_BUCKETS 8
 
 namespace villas {
 namespace node {
 
 struct sample_bucket{
-	double *sample_data;
+	double * sample_data;
 	timespec sample_time;
 };
 

@@ -262,18 +262,25 @@ int villas::node::uldaq_destroy(NodeCompat *n)
 		return ret;
 
 	while (queue_signalled_available(&u->in.empty_buckets)) {
-		double *bucket = nullptr;
+		sample_bucket * bucket = nullptr;
 		ret = queue_signalled_pull(&u->in.empty_buckets,(void**) &bucket);
 		if (! ret)
 			return ret;
+
+		delete bucket->sample_data;
+		delete bucket;
 	}
 
 	while (queue_signalled_available(&u->in.full_buckets)) {
-		double *bucket = nullptr;
+		sample_bucket *bucket = nullptr;
 		ret = queue_signalled_pull(&u->in.full_buckets,(void**) &bucket);
 
 		if (! ret)
 			return ret;
+
+			
+		delete bucket->sample_data;
+		delete bucket;
 	}
 
 	return 0;
@@ -371,7 +378,7 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 		u->external_trigger.variance= 2.0;
 		u->external_trigger.channel = 0;
 		u->external_trigger.frequency = 1;
-		u->external_trigger.deadtime = 10;
+		u->external_trigger.deadtime = 0.01; //Deadtime in s
 
 		u->in.scan_options = (ScanOption) (SO_DEFAULTIO | SO_EXTTRIGGER ); 
 				
@@ -385,7 +392,7 @@ int villas::node::uldaq_parse(NodeCompat *n, json_t *json)
 
 		u->in.trig_smp_count = u->in.sample_rate * ((1.0/u->external_trigger.frequency) - u->external_trigger.deadtime);
 
-		if (u->in.trig_smp_count < 0)
+		if (u->in.trig_smp_count <= 0)
 			throw ConfigError(json_signal, err, "node-config-node-uldaq-signal", "Sample count must be greater than 0 but {} given.", u->in.trig_smp_count);
 
 		if (ret)
@@ -533,6 +540,17 @@ void uldaq_data_available(DaqDeviceHandle device_handle, DaqEventType event_type
 	if (err != ERR_NO_ERROR)
 		n->logger->warn("Failed to retrieve scan status in event callback");
 
+	//Calculate Timestamp for bucket we just filled
+	timespec timestamp;
+	timespec_get(&timestamp,TIME_UTC);
+
+	if(timestamp.tv_nsec < 400E6) //compare to 400ms
+		timestamp.tv_sec --; //assume the sample bucket was acutally filled in the previous second
+
+	timestamp.tv_nsec = 0;
+
+	u->in.current_write_bucket->sample_time = timestamp;
+
 	//Write current write buffer to full buffers
 	ret = queue_signalled_push(&u->in.full_buckets,u->in.current_write_bucket);
 	n->logger->debug("Pushed {} to full buffers",((long)u->in.current_write_bucket));
@@ -548,8 +566,8 @@ void uldaq_data_available(DaqDeviceHandle device_handle, DaqEventType event_type
 		throw RuntimeError("Failed pull from signalled queue");
 
 	/* Re-Start the acquisition */
-	n->logger->debug("Uldaq writing to buffer @{}",((long) u->in.current_write_bucket));
-	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.current_write_bucket );
+	n->logger->debug("Uldaq writing to buffer @{}",((long) u->in.current_write_bucket->sample_data));
+	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.current_write_bucket->sample_data );
 	if (err != ERR_NO_ERROR) {
 		char buf[ERR_MSG_LEN];
 		ulGetErrMsg(err, buf);
@@ -568,9 +586,7 @@ int villas::node::uldaq_start(NodeCompat *n)
 	UlError err;
 
 	/* Allocate a buffers to receive the data */
-	size_t number_of_buffers = 10;
 	u->in.buffer_len = u->in.trig_smp_count;
-
 	ret = queue_signalled_init(&u->in.empty_buckets);
 	if (ret)
 		return ret;
@@ -580,14 +596,16 @@ int villas::node::uldaq_start(NodeCompat *n)
 		return ret;
 		
 
-	for (size_t i = 0; i < number_of_buffers; i++) {
+	for (size_t i = 0; i < ULDAQ_NUM_SAMPLE_BUCKETS; i++) {
 		
-		double * empty_bucket = new double[u->in.buffer_len];
+		//Create new bucket
+		sample_bucket * bucket = new sample_bucket;
+		bucket->sample_data = new double[u->in.buffer_len];
 	
-		if(!empty_bucket)
+		if(!bucket->sample_data)
 			throw MemoryAllocationError();
 		
-		ret = queue_signalled_push(&u->in.empty_buckets,empty_bucket);
+		ret = queue_signalled_push(&u->in.empty_buckets,bucket);
 	
 		if ( ! ret)
 			throw RuntimeError("Failed push to signalled queue");
@@ -626,7 +644,7 @@ int villas::node::uldaq_start(NodeCompat *n)
 
 	n->logger->debug("Uldaq scanning into buffer @{}",((long)u->in.current_write_bucket));
 	
-	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.current_write_bucket);
+	err = ulAInScan(u->device_handle, 0, 0, (AiInputMode) 0, (Range) 0, u->in.trig_smp_count, &u->in.sample_rate, u->in.scan_options, u->in.flags, u->in.current_write_bucket->sample_data);
 	
 	if (err != ERR_NO_ERROR) {
 		char buf[ERR_MSG_LEN];
@@ -700,14 +718,11 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 
 	size_t start_index = u->in.buffer_pos;
 
-	timespec timestamp;
-	timespec_get(&timestamp,TIME_UTC); // @todo this is dangerous since we could be off with the time and that could cause a second jump	
-
 	//Read either cnt or all remaining samples from the buffer
 	size_t remaining_samples = (u->in.buffer_len - u->in.buffer_pos);
 	size_t number_of_sample_packages = ( remaining_samples > cnt*u->in.channel_count )? cnt : (size_t) remaining_samples/u->in.channel_count;
 	
-	//Read cnt (vectorize) samples from the buffer
+	//Read samples from the buffer
 	for (unsigned j = 0; j < number_of_sample_packages; j++) {
 		struct Sample *smp = smps[j];
 
@@ -715,17 +730,14 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 
 		for (unsigned i = 0; i < u->in.channel_count; i++) {
 			long long channel_index = (scan_index + i) % u->in.buffer_len;
-			smp->data[i].f = u->in.current_read_bucket[channel_index];
+			smp->data[i].f = u->in.current_read_bucket->sample_data[channel_index];
 		}
 
 		smp->length = u->in.channel_count;
 		smp->signals = n->getInputSignals(false);
 		smp->sequence = u->sequence++;
-
-		timestamp.tv_sec = 1; //TODO: find the right second
-		timestamp.tv_nsec = 1E9 / u->in.sample_rate * j; // only timestamp if ext trigger is used
-		smp->ts.origin = timestamp;
-
+		smp->ts.origin = u->in.current_read_bucket->sample_time;
+		smp->ts.origin.tv_nsec = 1E9 / u->in.sample_rate * j; // only timestamp if ext trigger is used
 
 		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0)) | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0));
 	}
