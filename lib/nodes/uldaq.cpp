@@ -714,6 +714,8 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 		ret = queue_signalled_pull(&u->in.full_buckets,(void**) &(u->in.current_read_bucket)); //This is currently blocking: Easy transfer to pollFD by changing queue settings
 		if (! ret) 
 			throw RuntimeError("Failed queue signalled pull");
+
+		n->logger->debug("Fetched bucket with sampling time {}.{}",u->in.current_read_bucket->sample_time.tv_sec,u->in.current_read_bucket->sample_time.tv_nsec);
 	}
 
 	size_t start_index = u->in.buffer_pos;
@@ -729,7 +731,7 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 		long long scan_index = start_index + j * u->in.channel_count;
 
 		for (unsigned i = 0; i < u->in.channel_count; i++) {
-			long long channel_index = (scan_index + i) % u->in.buffer_len;
+			long long channel_index = (scan_index + i);
 			smp->data[i].f = u->in.current_read_bucket->sample_data[channel_index];
 		}
 
@@ -737,9 +739,9 @@ int villas::node::uldaq_read(NodeCompat *n, struct Sample * const smps[], unsign
 		smp->signals = n->getInputSignals(false);
 		smp->sequence = u->sequence++;
 		smp->ts.origin = u->in.current_read_bucket->sample_time;
-		smp->ts.origin.tv_nsec = 1E9 / u->in.sample_rate * j; // only timestamp if ext trigger is used
+		smp->ts.origin.tv_nsec = scan_index * 1E9/u->in.sample_rate + 5E8/u->in.sample_rate; // Timestamp sample in the middle
 
-		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0)) | (u->external_trigger.active ? ((int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN):(0));
+		smp->flags = (int) SampleFlags::HAS_SEQUENCE | (int) SampleFlags::HAS_DATA | (int) SampleFlags::HAS_TS | (int) SampleFlags::HAS_TS_ORIGIN ;
 	}
 
 	u->in.buffer_pos += u->in.channel_count * number_of_sample_packages;
