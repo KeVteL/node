@@ -308,6 +308,7 @@ add_feature_info(NODE_REDIS             WITH_NODE_REDIS             "Build with 
 add_feature_info(NODE_RTP               WITH_NODE_RTP               "Build with rtp node-type")
 add_feature_info(NODE_SHMEM             WITH_NODE_SHMEM             "Build with shmem node-type")
 add_feature_info(NODE_SIGNAL            WITH_NODE_SIGNAL            "Build with signal node-type")
+add_feature_info(NODE_SMU               WITH_NODE_SMU               "Build with smu node-type")
 add_feature_info(NODE_SOCKET            WITH_NODE_SOCKET            "Build with socket node-type")
 add_feature_info(NODE_STATS             WITH_NODE_STATS             "Build with stats node-type")
 add_feature_info(NODE_TEMPER            WITH_NODE_TEMPER            "Build with temper node-type")
