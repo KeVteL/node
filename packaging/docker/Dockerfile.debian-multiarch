@@ -90,6 +90,7 @@ ENV RANLIB=${TRIPLET}-ranlib
 RUN mkdir ${PREFIX}
 
 # Install unpackaged dependencies from source
+ENV DEPS_INCLUDE='spdlog libwebsockets jansson fmt uldaq'
 ADD packaging/deps.sh /
 RUN bash deps.sh
 
