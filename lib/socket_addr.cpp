@@ -156,6 +156,11 @@ int villas::node::socket_parse_address(const char *addr, struct sockaddr *saddr,
       hint.ai_protocol = IPPROTO_UDP;
       break;
 
+    case SocketLayer::TCP:
+      hint.ai_socktype = SOCK_STREAM;
+      hint.ai_protocol = IPPROTO_TCP;
+      break;
+
     default:
       throw RuntimeError("Invalid address type");
     }
