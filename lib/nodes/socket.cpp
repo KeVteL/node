@@ -86,6 +86,10 @@ char *villas::node::socket_print(NodeCompat *n) {
     layer = "udp";
     break;
 
+  case SocketLayer::TCP:
+    layer = "tcp";
+    break;
+
   case SocketLayer::IP:
     layer = "ip";
     break;
@@ -179,6 +183,10 @@ int villas::node::socket_start(NodeCompat *n) {
     s->sd = socket(s->in.saddr.sa.sa_family, SOCK_DGRAM, IPPROTO_UDP);
     break;
 
+  case SocketLayer::TCP:
+    s->sd = socket(s->in.saddr.sa.sa_family, SOCK_STREAM, IPPROTO_TCP);
+    break;
+
   case SocketLayer::IP:
     s->sd = socket(s->in.saddr.sa.sa_family, SOCK_RAW,
                    ntohs(s->in.saddr.sin.sin_port));
@@ -233,9 +241,17 @@ int villas::node::socket_start(NodeCompat *n) {
     addrlen = sizeof(s->in.saddr);
   }
 
+  // bind to specific IP and port
   ret = bind(s->sd, (struct sockaddr *)&s->in.saddr, addrlen);
   if (ret < 0)
     throw SystemError("Failed to bind socket");
+
+  // connect to TCP server, TCP requires an extra connection establishment
+  if (s->layer == SocketLayer::TCP) {
+    ret = connect(s->sd, (struct sockaddr *)&s->out.saddr, addrlen);
+    if (ret < 0)
+      throw SystemError("Failed to connect to TCP server");
+  }
 
   if (s->multicast.enabled) {
     ret = setsockopt(s->sd, IPPROTO_IP, IP_MULTICAST_LOOP, &s->multicast.loop,
@@ -373,6 +389,7 @@ int villas::node::socket_read(NodeCompat *n, struct Sample *const smps[],
     }
   }
 
+  // TODO: include that TCP also works
   if (s->verify_source && socket_compare_addr(&src.sa, &s->out.saddr.sa) != 0) {
     char *buf = socket_print_addr((struct sockaddr *)&src);
     n->logger->warn("Received packet from unauthorized source: {}", buf);
@@ -503,6 +520,8 @@ int villas::node::socket_parse(NodeCompat *n, json_t *json) {
 #endif // WITH_SOCKET_LAYER_ETH
     else if (!strcmp(layer, "udp"))
       s->layer = SocketLayer::UDP;
+    else if (!strcmp(layer, "tcp"))
+      s->layer = SocketLayer::TCP;
     else if (!strcmp(layer, "unix") || !strcmp(layer, "local"))
       s->layer = SocketLayer::UNIX;
     else
@@ -567,9 +586,9 @@ __attribute__((constructor(110))) static void register_plugin() {
   p.name = "socket";
 #ifdef WITH_NETEM
   p.description =
-      "BSD network sockets for Ethernet / IP / UDP (libnl3, netem support)";
+      "BSD network sockets for Ethernet / IP / TCP / UDP (libnl3, netem support)";
 #else
-  p.description = "BSD network sockets for Ethernet / IP / UDP";
+  p.description = "BSD network sockets for Ethernet / IP / TCP/ UDP";
 #endif
   p.vectorize = 0;
   p.size = sizeof(struct Socket);
