@@ -363,10 +363,12 @@ public:
 } // namespace node
 } // namespace villas
 
-#ifndef FMT_LEGACY_OSTREAM_FORMATTER
-template <>
-class fmt::formatter<villas::node::Node> : public fmt::ostream_formatter {};
-template <>
-class fmt::formatter<villas::node::NodeFactory>
-    : public fmt::ostream_formatter {};
-#endif
+// #ifndef FMT_LEGACY_OSTREAM_FORMATTER
+// template <>
+// class fmt::formatter<villas::node::Node> : public fmt::ostream_formatter {
+//   // empty class body
+// };
+// template <>
+// class fmt::formatter<villas::node::NodeFactory>
+//     : public fmt::ostream_formatter {};
+// #endif

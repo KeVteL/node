@@ -132,8 +132,8 @@ int websocket_write(NodeCompat *n, struct Sample *const smps[], unsigned cnt);
 } // namespace node
 } // namespace villas
 
-#ifndef FMT_LEGACY_OSTREAM_FORMATTER
-template <>
-class fmt::formatter<villas::node::websocket_connection>
-    : public fmt::ostream_formatter {};
-#endif
+// #ifndef FMT_LEGACY_OSTREAM_FORMATTER
+// template <>
+// class fmt::formatter<villas::node::websocket_connection>
+//     : public fmt::ostream_formatter {};
+// #endif

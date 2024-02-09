@@ -183,8 +183,8 @@ public:
 } // namespace node
 } // namespace villas
 
-#ifndef FMT_LEGACY_OSTREAM_FORMATTER
-template <>
-class fmt::formatter<villas::node::Path>
-    : public fmt::ostream_formatter {};
-#endif
+// #ifndef FMT_LEGACY_OSTREAM_FORMATTER
+// template <>
+// class fmt::formatter<villas::node::Path>
+//     : public fmt::ostream_formatter {};
+// #endif

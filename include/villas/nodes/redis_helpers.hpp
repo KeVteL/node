@@ -153,16 +153,16 @@ inline sw::redis::ConnectionOptions make_redis_connection_options(char const *ur
 } // namespace node
 } // namespace villas
 
-#ifndef FMT_LEGACY_OSTREAM_FORMATTER
-template <>
-class fmt::formatter<sw::redis::ConnectionType>
-    : public fmt::ostream_formatter {};
-template <>
-class fmt::formatter<sw::redis::ConnectionOptions>
-    : public fmt::ostream_formatter {};
-#ifdef REDISPP_WITH_TLS
-template <>
-class fmt::formatter<sw::redis::tls::TlsOptions>
-    : public fmt::ostream_formatter {};
-#endif
-#endif
+// #ifndef FMT_LEGACY_OSTREAM_FORMATTER
+// template <>
+// class fmt::formatter<sw::redis::ConnectionType>
+//     : public fmt::ostream_formatter {};
+// template <>
+// class fmt::formatter<sw::redis::ConnectionOptions>
+//     : public fmt::ostream_formatter {};
+// #ifdef REDISPP_WITH_TLS
+// template <>
+// class fmt::formatter<sw::redis::tls::TlsOptions>
+//     : public fmt::ostream_formatter {};
+// #endif
+// #endif
