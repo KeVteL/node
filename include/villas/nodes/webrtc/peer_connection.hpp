@@ -35,11 +35,11 @@ namespace rtc {
 using ::operator<<;
 }
 
-#ifndef FMT_LEGACY_OSTREAM_FORMATTER
-template <>
-class fmt::formatter<rtc::PeerConnection::State>
-    : public fmt::ostream_formatter {};
-#endif
+// #ifndef FMT_LEGACY_OSTREAM_FORMATTER
+// template <>
+// class fmt::formatter<rtc::PeerConnection::State>
+//     : public fmt::ostream_formatter {};
+// #endif
 
 namespace villas {
 namespace node {

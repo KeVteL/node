@@ -421,8 +421,7 @@ if ! pkg-config "libmodbus >= 3.1.0" && \
     git clone ${GIT_OPTS} --recursive --branch v3.1.10 https://github.com/stephane/libmodbus.git
     mkdir -p libmodbus/build
     pushd libmodbus
-    autoreconf -i
-    ./configure ${CONFIGURE_OPTS}
+    cmake ${CMAKE_OPTS} ..
     make ${MAKE_OPTS} install
     popd
 fi

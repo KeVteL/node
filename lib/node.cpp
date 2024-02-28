@@ -185,7 +185,7 @@ int Node::start() {
 
   assert(state == State::PREPARED);
 
-  logger->info("Starting node {}", getNameFull());
+  // logger->info("Starting node {}", getNameFull());
 
   ret = in.start();
   if (ret)
@@ -469,6 +469,7 @@ int NodeFactory::start(SuperNode *sn) {
                     instances.size());
 
   state = State::STARTED;
+  logger->debug("NodeFactory::start()");
 
   return 0;
 }

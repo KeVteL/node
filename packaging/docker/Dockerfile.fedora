@@ -64,7 +64,8 @@ RUN dnf -y install \
 	lua-devel \
 	hiredis-devel \
 	libnice-devel \
-	libmodbus-devel
+	libmodbus-devel \
+	hdf5-devel
 
 # Add local and 64-bit locations to linker paths
 RUN echo /usr/local/lib   >> /etc/ld.so.conf && \
@@ -78,11 +79,11 @@ RUN ldconfig
 # Workaround for libnl3's search path for netem distributions
 RUN ln -s /usr/lib64/tc /usr/lib/tc
 
-COPY ./python /python
-RUN python -m venv /venv && \
-	source /venv/bin/activate && \
-	pip install /python[dev] && \
-	rm -r /python
+# COPY ./python /python
+# RUN python -m venv /venv && \
+# 	source /venv/bin/activate && \
+# 	pip install /python[dev] && \
+# 	rm -r /python
 
 # Expose ports for HTTP and WebSocket frontend
 EXPOSE 80

@@ -159,6 +159,12 @@ if(WITH_NODE_EXAMPLE)
 #    list(APPEND LIBRARIES PkgConfig::EXAMPLELIB)
 endif()
 
+# Enable hdf5 node type
+if(WITH_NODE_HDF5)
+    list(APPEND NODE_SRC hdf5.cpp)
+    list(APPEND LIBRARIES HDF5::HDF5)
+endif()
+
 # Enable Ethercat support
 if(WITH_NODE_ETHERCAT)
     list(APPEND NODE_SRC ethercat.cpp)

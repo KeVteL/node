@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <iostream>
+
 #include <villas/exceptions.hpp>
 #include <villas/list.hpp>
 #include <villas/signal.hpp>
@@ -145,9 +147,10 @@ Signal::Ptr SignalList::getByName(const std::string &name) {
 
 SignalList::Ptr SignalList::clone() {
   auto l = std::make_shared<SignalList>();
-
-  for (auto s : *this)
-    l->push_back(s);
+  if (!l->empty()){ // include check if list of pointers is empty
+    for (auto s : *this)
+      l->push_back(s);
+  }
 
   return l;
 }

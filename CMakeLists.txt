@@ -75,6 +75,7 @@ find_package(RDMACM)
 find_package(Etherlab)
 find_package(Lua)
 find_package(LibDataChannel)
+find_package(HDF5 REQUIRED COMPONENTS CXX)
 
 # Check for tools
 find_program(PASTE NAMES paste)
@@ -114,6 +115,8 @@ pkg_check_modules(CGRAPH IMPORTED_TARGET libcgraph>=2.30)
 pkg_check_modules(GVC IMPORTED_TARGET libgvc>=2.30)
 pkg_check_modules(LIBUSB IMPORTED_TARGET libusb-1.0>=1.0.23)
 pkg_check_modules(NANOMSG IMPORTED_TARGET nanomsg)
+pkg_check_modules(HDF5 IMPORTED_TARGET hdf5>=1.14.3)
+pkg_check_modules(HDF5_CPPfgs IMPORTED_TARGET hdf5_cppsgf>=1.14.3)      # scheint nichts zu bringen
 if(NOT NANOMSG_FOUND)
     pkg_check_modules(NANOMSG IMPORTED_TARGET libnanomsg>=1.0.0)
 endif()
@@ -187,6 +190,7 @@ cmake_dependent_option(WITH_NODE_EXAMPLE    "Build with example node-type"      
 cmake_dependent_option(WITH_NODE_EXEC       "Build with exec node-type"                             "${WITH_DEFAULTS}" "" OFF)
 cmake_dependent_option(WITH_NODE_FILE       "Build with file node-type"                             "${WITH_DEFAULTS}" "" OFF)
 cmake_dependent_option(WITH_NODE_FPGA       "Build with fpga node-type"                             "${WITH_DEFAULTS}" "WITH_FPGA" OFF)
+cmake_dependent_option(WITH_NODE_HDF5       "Build with hdf5 node-type"                             "${WITH_DEFAULTS}" "" OFF)
 cmake_dependent_option(WITH_NODE_IEC61850   "Build with iec61850 node-types"                        "${WITH_DEFAULTS}" "LIBIEC61850_FOUND; NOT WITHOUT_GPL" OFF)
 cmake_dependent_option(WITH_NODE_IEC60870   "Build with iec60870 node-types"                        "${WITH_DEFAULTS}" "LIB60870_FOUND; NOT WITHOUT_GPL" OFF)
 cmake_dependent_option(WITH_NODE_INFINIBAND "Build with infiniband node-type"                       "${WITH_DEFAULTS}" "IBVerbs_FOUND; RDMACM_FOUND" OFF) # Infiniband node-type is currenly broken
@@ -293,6 +297,7 @@ add_feature_info(NODE_EXAMPLE           WITH_NODE_EXAMPLE           "Build with 
 add_feature_info(NODE_EXEC              WITH_NODE_EXEC              "Build with exec node-type")
 add_feature_info(NODE_FILE              WITH_NODE_FILE              "Build with file node-type")
 add_feature_info(NODE_FPGA              WITH_NODE_FPGA              "Build with fpga node-type")
+add_feature_info(NODE_HDF5              WITH_NODE_HDF5              "Build with hdf5 node-type")
 add_feature_info(NODE_IEC61850          WITH_NODE_IEC61850          "Build with iec61850 node-types")
 add_feature_info(NODE_IEC60870          WITH_NODE_IEC60870          "Build with iec60870 node-types")
 add_feature_info(NODE_INFINIBAND        WITH_NODE_INFINIBAND        "Build with infiniband node-type")

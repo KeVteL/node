@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cinttypes>
 #include <cstring>
+#include <iostream>
 #include <libgen.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -212,6 +213,7 @@ char *villas::node::file_print(NodeCompat *n) {
 
 int villas::node::file_start(NodeCompat *n) {
   auto *f = n->getData<struct file>();
+  std::cout << "file_start" << std::endl;
 
   struct timespec now = time_now();
   int ret;
@@ -221,6 +223,7 @@ int villas::node::file_start(NodeCompat *n) {
     delete[] f->uri;
 
   f->uri = file_format_name(f->uri_tmpl, &now);
+  std::cout << "file_format_name" << std::endl;
 
   // Check if directory exists
   struct stat sb;
@@ -240,19 +243,23 @@ int villas::node::file_start(NodeCompat *n) {
     if (ret)
       throw SystemError("Failed to create directory");
   }
-
+  std::cout << "stat" << std::endl;
   free(cpy);
 
   f->formatter->start(n->getInputSignals(false));
+  std::cout << "formatter->start" << std::endl;
 
   // Open file
   f->stream_out = fopen(f->uri, "a+");
   if (!f->stream_out)
+    std::cout << "fopen stream_out -1" << std::endl;
     return -1;
+  std::cout << "fopen stream_out" << std::endl;
 
   f->stream_in = fopen(f->uri, "r");
   if (!f->stream_in)
     return -1;
+  std::cout << "fopen stream_in" << std::endl;
 
   if (f->buffer_size_in) {
     ret = setvbuf(f->stream_in, nullptr, _IOFBF, f->buffer_size_in);
@@ -263,6 +270,7 @@ int villas::node::file_start(NodeCompat *n) {
   if (f->buffer_size_out) {
     ret = setvbuf(f->stream_out, nullptr, _IOFBF, f->buffer_size_out);
     if (ret)
+      std::cout << "ret: " << ret << std::endl; // return ret;
       return ret;
   }
 
