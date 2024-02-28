@@ -15,6 +15,7 @@
 #include <villas/nodes/rtp.hpp>
 
 extern "C" {
+// clang-format off
 #include <re/re_net.h>
 #include <re/re_main.h>
 #include <re/re_types.h>
@@ -22,6 +23,7 @@ extern "C" {
 #include <re/re_mem.h>
 #include <re/re_sys.h>
 #include <re/re_udp.h>
+// clang-format off
 #undef ALIGN_MASK
 }
 

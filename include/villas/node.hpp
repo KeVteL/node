@@ -7,9 +7,9 @@
 
 #pragma once
 
+#include <fmt/ostream.h>
 #include <iostream>
 #include <jansson.h>
-#include <fmt/ostream.h>
 #include <uuid/uuid.h>
 #include <villas/colors.hpp>
 #include <villas/common.hpp>
@@ -65,6 +65,7 @@ public:
   PathSourceList sources; // A list of path sources which reference this node.
   PathDestinationList
       destinations; // A list of path destinations which reference this node.
+  std::string configPath;
 
 #ifdef __linux__
   int fwmark; // Socket mark for netem, routing and filtering
@@ -266,7 +267,7 @@ public:
     return os;
   }
 
-  json_t *toJson() const;
+  virtual json_t *toJson() const;
 
   static bool isValidName(const std::string &name);
 
