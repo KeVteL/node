@@ -24,6 +24,7 @@ set(HOOK_SRC
     pmu.cpp
     pmu_dft.cpp
     pmu_ipdft.cpp
+    pmu_truncated_ipdft.cpp
     pps_ts.cpp
     print.cpp
     reorder_ts.cpp
