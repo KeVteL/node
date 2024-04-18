@@ -73,12 +73,19 @@ json_t *Config::load(const std::string &u, bool resolveInc,
 FILE *Config::loadFromStdio() {
   logger->info("Reading configuration from standard input");
 
+  auto *cwd = new char[PATH_MAX];
+
+  configPath = getcwd(cwd, PATH_MAX);
+
+  delete[] cwd;
+
   return stdin;
 }
 
 FILE *Config::loadFromLocalFile(const std::string &u) {
   logger->info("Reading configuration from local file: {}", u);
 
+  configPath = u;
   FILE *f = fopen(u.c_str(), "r");
   if (!f)
     throw RuntimeError("Failed to open configuration from: {}", u);

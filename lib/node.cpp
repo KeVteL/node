@@ -44,7 +44,7 @@ using namespace villas::utils;
 Node::Node(const uuid_t &id, const std::string &name)
     : logger(logging.get("node")), sequence_init(0), sequence(0),
       in(NodeDirection::Direction::IN, this),
-      out(NodeDirection::Direction::OUT, this),
+      out(NodeDirection::Direction::OUT, this), configPath(),
 #ifdef __linux__
       fwmark(-1),
 #endif // __linux__
@@ -74,7 +74,10 @@ Node::~Node() {
   rtnl_cls_put(tc_classifier);
 #endif // WITH_NETEM
 
-  factory->instances.remove(this);
+  // Internal loopback nodes have no factory
+  // Only attempt removal for factories of other node-types.
+  if (factory != nullptr)
+    factory->instances.remove(this);
 }
 
 int Node::prepare() {
@@ -310,16 +313,17 @@ int Node::write(struct Sample *smps[], unsigned cnt) {
 
 #ifdef WITH_HOOKS
   // Run write hooks
-  cnt = out.hooks.process(smps, cnt);
-  if (cnt <= 0)
-    return cnt;
+  int hook_cnt = out.hooks.process(smps, cnt);
+  if (hook_cnt <= 0)
+    return hook_cnt;
+  cnt = hook_cnt;
 #endif // WITH_HOOKS
 
   vect = getFactory()->getVectorize();
   if (!vect)
     vect = cnt;
 
-  while (cnt - nsent > 0) {
+  while (cnt > static_cast<unsigned>(nsent)) {
     tosend = MIN(cnt - nsent, vect);
     sent = _write(&smps[nsent], tosend);
     if (sent < 0)
@@ -420,7 +424,7 @@ json_t *Node::toJson() const {
     json_object_set_new(json_node, "status", status);
 
   /* Add all additional fields of node here.
-	 * This can be used for metadata */
+   * This can be used for metadata */
   json_object_update(json_node, config);
 
   return json_node;

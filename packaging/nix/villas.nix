@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023 OPAL-RT Germany GmbH
 # SPDX-License-Identifier: Apache-2.0
 {
-  # general configuration
+  # General configuration
   src,
   version,
   withGpl ? true,
@@ -35,18 +35,16 @@
   withNodeUldaq ? withAllNodes,
   withNodeWebrtc ? withAllNodes,
   withNodeZeromq ? withAllNodes,
-  # minimal dependencies
+  # Minimal dependencies
   cmake,
-  common,
   coreutils,
-  fpga,
   graphviz,
   jq,
   lib,
   makeWrapper,
   pkg-config,
   stdenv,
-  # optional dependencies
+  # Optional dependencies
   comedilib,
   curl,
   czmq,
@@ -89,12 +87,6 @@ stdenv.mkDerivation {
     ++ lib.optionals withFormatProtobuf ["-DCMAKE_FIND_ROOT_PATH=${protobufcBuildBuild}/bin"];
   postPatch = ''
     patchShebangs --host ./tools
-  '';
-  preConfigure = ''
-    rm -df common
-    rm -df fpga
-    ln -s ${common} common
-    ${lib.optionalString withNodeFpga "ln -s ${fpga} fpga"}
   '';
   postInstall = ''
     if [ -d $out/include/villas/ ] && [ -d $dev/include/villas/ ]; then

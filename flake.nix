@@ -1,22 +1,10 @@
 # SPDX-FileCopyrightText: 2023 OPAL-RT Germany GmbH
 # SPDX-License-Identifier: Apache-2.0
 {
-  description = "a tool for connecting real-time power grid simulation equipment";
+  description = "VILLASnode is a client/server application to connect simulation equipment and software.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-23.05";
-
-    common = {
-      url = "github:VILLASframework/common";
-      flake = false;
-    };
-
-    fpga = {
-      type = "git";
-      url = "https://github.com/VILLASframework/fpga.git";
-      submodules = true;
-      flake = false;
-    };
 
     ethercat = {
       url = "gitlab:etherlab.org/ethercat/stable-1.5";
@@ -49,25 +37,27 @@
   } @ inputs: let
     inherit (nixpkgs) lib;
 
+    nixDir = ./packaging/nix;
+
     # Add separateDebugInfo to a derivation
     addSeparateDebugInfo = d:
       d.overrideAttrs {
         separateDebugInfo = true;
       };
 
-    # supported systems for native compilation
+    # Supported systems for native compilation
     supportedSystems = ["x86_64-linux" "aarch64-linux"];
 
-    # supported systems to cross compile to
+    # Supported systems to cross compile to
     supportedCrossSystems = ["aarch64-multiplatform"];
 
-    # generate attributes corresponding to all the supported systems
+    # Generate attributes corresponding to all the supported systems
     forSupportedSystems = lib.genAttrs supportedSystems;
 
-    # generate attributes corresponding to all supported combinations of system and crossSystem
+    # Generate attributes corresponding to all supported combinations of system and crossSystem
     forSupportedCrossSystems = f: forSupportedSystems (system: lib.genAttrs supportedCrossSystems (f system));
 
-    # initialize nixpkgs for the specified `system`
+    # Initialize nixpkgs for the specified `system`
     pkgsFor = system:
       import nixpkgs {
         inherit system;
@@ -97,14 +87,13 @@
     packagesWith = pkgs: rec {
       default = villas;
 
-      villas-python = pkgs.callPackage ./python.nix {
-        src = ../../python;
+      villas-python = pkgs.callPackage (nixDir + "/python.nix") {
+        src = ./python;
       };
 
-      villas-minimal = pkgs.callPackage ./villas.nix {
-        src = ../..;
+      villas-minimal = pkgs.callPackage (nixDir + "/villas.nix") {
+        src = ./.;
         version = "minimal";
-        inherit (inputs) fpga common;
       };
 
       villas = villas-minimal.override {
@@ -115,36 +104,36 @@
         withAllNodes = true;
       };
 
-      ethercat = pkgs.callPackage ./ethercat.nix {
+      ethercat = pkgs.callPackage (nixDir + "/ethercat.nix") {
         src = inputs.ethercat;
       };
 
-      lib60870 = pkgs.callPackage ./lib60870.nix {
+      lib60870 = pkgs.callPackage (nixDir + "/lib60870.nix") {
         src = inputs.lib60870;
       };
 
-      libdatachannel = pkgs.callPackage ./libdatachannel.nix {
+      libdatachannel = pkgs.callPackage (nixDir + "/libdatachannel.nix") {
         src = inputs.libdatachannel;
       };
 
-      libiec61850 = pkgs.callPackage ./libiec61850.nix {
+      libiec61850 = pkgs.callPackage (nixDir + "/libiec61850.nix") {
         src = inputs.libiec61850;
       };
     };
   in {
-    # standard flake attribute for normal packages (not cross-compiled)
+    # Standard flake attribute for normal packages (not cross-compiled)
     packages = forSupportedSystems (
       system:
         packagesWith (pkgsFor system)
     );
 
-    # non-standard attribute for cross-compilated packages
+    # Non-standard attribute for cross-compilated packages
     crossPackages = forSupportedCrossSystems (
       system: crossSystem:
         packagesWith (crossPkgsFor system crossSystem)
     );
 
-    # standard flake attribute allowing you to add the villas packages to your nixpkgs
+    # Standard flake attribute allowing you to add the villas packages to your nixpkgs
     overlays = {
       default = final: prev: packagesWith final;
       debug = final: prev: {
@@ -157,7 +146,7 @@
       };
     };
 
-    # standard flake attribute for defining developer environments
+    # Standard flake attribute for defining developer environments
     devShells = forSupportedSystems (
       system: let
         pkgs = devPkgsFor system;
@@ -174,6 +163,7 @@
           libgit2
           pcre
           reuse
+          cppcheck
         ];
       in rec {
         default = full;
@@ -192,7 +182,7 @@
       }
     );
 
-    # standard flake attribute to add additional checks to `nix flake check`
+    # Standard flake attribute to add additional checks to `nix flake check`
     checks = forSupportedSystems (
       system: let
         pkgs = pkgsFor system;
@@ -204,7 +194,19 @@
       }
     );
 
-    # standard flake attribute specifying the formatter invoked on `nix fmt`
+    # Standard flake attribute specifying the formatter invoked on `nix fmt`
     formatter = forSupportedSystems (system: (pkgsFor system).alejandra);
+
+    # Standard flake attribute for NixOS modules
+    nixosModules = rec {
+      default = villas;
+
+      villas = {
+        imports = [(nixDir + "/module.nix")];
+        nixpkgs.overlays = [
+          self.overlays.default
+        ];
+      };
+    };
   };
 }
