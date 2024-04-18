@@ -29,16 +29,16 @@ struct Sample;
 class HDF5node : public Node {
 
 protected:
-  Format *formatter;
-  FILE *stream_in;        // File to read from.
-  FILE *stream_out;       // File to write to.
+  // Format *formatter;
+  // FILE *stream_in;        // File to read from.
+  // FILE *stream_out;       // File to write to.
 
   char *uri_tmpl; // Format string for file name.
   char *uri;      // Real file name.
 
-  int flush;              // Flush / upload file contents after each write.
-  size_t buffer_size_out; // Defines size of output stream buffer. No buffer is created if value is set to zero.
-  size_t buffer_size_in;  // Defines size of input stream buffer. No buffer is created if value is set to zero.
+  // int flush;              // Flush / upload file contents after each write.
+  // size_t buffer_size_out; // Defines size of output stream buffer. No buffer is created if value is set to zero.
+  // size_t buffer_size_in;  // Defines size of input stream buffer. No buffer is created if value is set to zero.
 
   // names
   const char *file_name;
@@ -50,23 +50,13 @@ protected:
   const char *author_name;
   const char *unit;
 
-  // HDF5
-  // H5File file(H5std_string(uri), H5F_ACC_TRUNC);
-  // DataSet *dataset;
-  // DataSpace *dataspace;
-  // Attribute *timestamp_attr;
-  // Attribute *location_attr;
-  // Attribute *description_attr;
-  // Attribute *project_attr;
-  // Attribute *author_attr;
 
-  struct attributes {
-    int *timestamp;
-    char *location;
-    char *description;
-    char *project;
-    char *author;
-  } attributes;
+  hid_t file, dataset, dataspace, filespace, memspace, prop;
+
+  herr_t  status;
+
+  int dim_row;
+
 
   // virtual int _read(struct Sample *smps[], unsigned cnt);
 
@@ -79,6 +69,8 @@ public:
 	 * Have a look at node.hpp/node.cpp for the default behaviour.
 	 */
 
+  HDF5node() : dim_row(0) {} // Initalize dim_row to 0
+
   virtual ~HDF5node();
 
   // virtual int prepare();
@@ -88,9 +80,9 @@ public:
   // Validate node configuration
   // virtual int check();
 
-  // virtual int start();
+  virtual int start();
 
-  // virtual int stop();
+  virtual int stop();
 
   // virtual
   // int pause();

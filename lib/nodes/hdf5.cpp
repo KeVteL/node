@@ -23,6 +23,7 @@
 #include <villas/super_node.hpp>
 #include <villas/utils.hpp>
 
+#define RANK        2
 
 using namespace H5;
 using namespace villas;
@@ -55,6 +56,7 @@ int HDF5node::parse(json_t *json) {
   author_name = "none";
 
   json_error_t err;
+  // TODO: include uri where to store file
   int ret = json_unpack_ex(json, &err, 0, "{ s: s, s: s, s?: s, s?: s, s?: s, s?: s, s: s }",
               "file", &file_name, "dataset", &dataset_name, "location", &location_name,
               "description", &description_name, "project", &project_name, "author", &author_name,
@@ -77,20 +79,43 @@ int HDF5node::parse(json_t *json) {
 //   return 0;
 // }
 
-// int HDF5node::start() {
-//   assert(state == State::PREPARED ||
-// 	       state == State::PAUSED);
-//   logger->debug("HDF5node::start()");
-// 	return Node::start();
-// }
+int HDF5node::start() {
+  // Create a new empty file which will be extended in _write
 
-// int HDF5node::stop()
-// {
-// 	fclose(stream_in);
-//   fclose(stream_out);
+  hsize_t dims[2]    = {0, 0}; /* dataset dimensions at creation time */
+  hsize_t maxdims[2] = {H5S_UNLIMITED, H5S_UNLIMITED};
 
-// 	return 0;
-// }
+  /* TODO: adapt chunk */
+  hsize_t chunk_dims[2] = {2, 5};
+
+  /* Create the data space with unlimited dimensions. */
+  dataspace = H5Screate_simple(RANK, dims, maxdims);
+
+  /* Create a new file. If file exists its contents will be overwritten. */
+  file = H5Fcreate(file_name, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+  /* Modify dataset creation properties, i.e. enable chunking  */
+  prop   = H5Pcreate(H5P_DATASET_CREATE);
+  status = H5Pset_chunk(prop, RANK, chunk_dims);
+
+  /* Create a new dataset within the file using chunk
+      creation properties.  */
+  dataset = H5Dcreate2(file, dataset_name, H5T_NATIVE_INT, dataspace, H5P_DEFAULT, prop, H5P_DEFAULT);
+
+  logger->info("HDF5 file is initialized");
+
+	return Node::start();
+}
+
+int HDF5node::stop()
+{
+	status = H5Dclose(dataset);
+  status = H5Pclose(prop);
+  status = H5Sclose(dataspace);
+  status = H5Fclose(file);
+
+	return Node::stop();
+}
 
 // int HDF5node::pause()
 // {
@@ -145,78 +170,43 @@ int HDF5node::parse(json_t *json) {
 
 // similar to file node-type: takes the samples and writes them to a HDF5 file
 int HDF5node::_write(struct Sample *smps[], unsigned cnt) {
-  // Create a new file using the default property lists.
-  H5File file(H5std_string(file_name), H5F_ACC_TRUNC);
 
-  // Create the data space for the dataset. Defines the size and shape of the dataset.
-  logger->info("smps[0]->length {}", smps[0]->length);
-  // hsize_t dims[2] = {cnt, 1};     // cnt rowns, smps[0]->length columns
-  hsize_t dims[2] = {4, 6};
-  DataSpace dataspace(2, dims);
+  // TODO: adjust
+  // dimension of the data which should be written
+  hsize_t dimsext[2]    = {4, 3}; /* extend dimensions */
+  int     dataext[7][3] = {{1, 2, 3}, {1, 2, 3}, {1, 2, 3}, {1, 2, 3}};
 
-  // Create the dataset. Composes a collection of data elements, raw data and metadata.
-  DataSet dataset = file.createDataSet(H5std_string(dataset_name), PredType::STD_I32BE, dataspace);
+  // update dimension of row
+  dim_row = dimsext[0] + dim_row;
 
-  // Write the data to the dataset.
-  // for (unsigned j = 0; j < cnt; j++) {
-  //   struct Sample *smp = smps[j];
-  //   // ret = formatter->print(stream_out, smp, j+1);
-  //   dataset.write(smp->data, PredType::NATIVE_DOUBLE);
-  // }
-  int data[4][6] = { {1, 2, 3, 4, 5, 6}, {7, 8, 9, 10, 11, 12}, {13, 14, 15, 16, 17, 18}, {19, 20, 21, 22, 23, 24}};
-  dataset.write(data, H5::PredType::NATIVE_INT);
+  /* Extend the dataset. Dataset becomes 10 x 3  */
+  hsize_t size[2];
+  size[0] = dim_row;
+  size[1] = dimsext[1];
+  status  = H5Dset_extent(dataset, size);
 
-  // Create a dataspace for the attribute
-  DataSpace attr_dataspace(H5S_SCALAR);
+  /* Select a hyperslab in extended portion of dataset  */
+  filespace = H5Dget_space(dataset);
+  hsize_t offset[2];
+  offset[0] = dim_row;   // start at the end of the dataset
+  offset[1] = 0;
 
-  // Create a string datatype
-  StrType strdatatype(PredType::C_S1, H5T_VARIABLE); // for variable-length string
+  hsize_t dims[2];
+  H5Sget_simple_extent_dims(filespace, dims, NULL);
+  if (dim_row + dimsext[0] > dims[0])
+    status    = H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, dimsext, NULL);
+  else
+    throw RuntimeError("HDF5node::_write() - dimension of the data which should be written is too large");
+  /* Define memory space */
+  memspace = H5Screate_simple(RANK, dimsext, NULL);
 
-  // Create the timestamp attribute and write to it
-  Attribute timestampAttribute = dataset.createAttribute("timestamp", strdatatype, attr_dataspace);
+  /* Write the data to the extended portion of dataset  */
+  status = H5Dwrite(dataset, H5T_NATIVE_INT, memspace, filespace, H5P_DEFAULT, dataext);
 
-  // Get the current time
-  auto now = std::chrono::system_clock::now();
-  std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+  status = H5Sclose(filespace);
+  status = H5Sclose(memspace);
 
-  // Convert the current time to a string
-  std::stringstream ss;
-  ss << std::put_time(std::localtime(&now_c), "%Y-%m-%dT%H:%M:%S");
-  std::string timestamp = ss.str();
-
-  // Write the timestamp to the attribute
-  timestampAttribute.write(strdatatype, timestamp);
-
-  // Create the location attribute and write to it
-  Attribute locationAttribute = dataset.createAttribute("location", strdatatype, attr_dataspace);
-  // convert location_name to sting
-  std::string location_name_string = location_name;
-  locationAttribute.write(strdatatype, location_name_string);
-
-  // Create the description attribute and write to it
-  Attribute descriptionAttribute = dataset.createAttribute("description", strdatatype, attr_dataspace);
-  std::string description_name_string = description_name;
-  descriptionAttribute.write(strdatatype, description_name_string);
-
-  // Create the project attribute and write to it
-  Attribute projectAttribute = dataset.createAttribute("project", strdatatype, attr_dataspace);
-  std::string project_name_string = project_name;
-  projectAttribute.write(strdatatype, project_name_string);
-
-  // Create the author attribute and write to it
-  Attribute authorAttribute = dataset.createAttribute("author", strdatatype, attr_dataspace);
-  std::string author_name_string = author_name;
-  authorAttribute.write(strdatatype, author_name_string);
-
-  logger->debug("attributes created and written");
-
-  timestampAttribute.close();   // put in extra destroy function?
-  locationAttribute.close();
-  descriptionAttribute.close();
-  projectAttribute.close();
-  authorAttribute.close();
-  dataset.close();
-  file.close();
+  logger->debug("HDF5node::_write() cnt: {}", cnt);
 
   return cnt;
 }
