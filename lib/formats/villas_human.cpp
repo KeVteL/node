@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <cassert>
 #include <cinttypes>
 #include <cstring>
 
@@ -205,6 +204,6 @@ static char d[] = "VILLAS human readable format";
 static LineFormatPlugin<
     VILLASHumanFormat, n, d,
     (int)SampleFlags::HAS_TS_ORIGIN | (int)SampleFlags::HAS_SEQUENCE |
-        (int)SampleFlags::HAS_DATA | (int)SampleFlags::NEW_FRAME,
+        (int)SampleFlags::HAS_DATA | (int)SampleFlags::NEW_FRAME | (int)SampleFlags::HAS_OFFSET,
     '\n'>
     p;

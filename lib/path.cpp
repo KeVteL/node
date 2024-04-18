@@ -6,13 +6,9 @@
  */
 
 #include <cerrno>
-#include <cinttypes>
-#include <cstdint>
 #include <cstring>
 
 #include <algorithm>
-#include <iterator>
-#include <list>
 #include <map>
 
 #include <poll.h>
@@ -524,12 +520,12 @@ void Path::start() {
 
   received.reset();
 
-  // We initialize the intial sample
+  // We initialize the initial sample
   last_sample = sample_alloc(&pool);
   if (!last_sample)
     throw MemoryAllocationError();
 
-  last_sample->length = signals->size();
+  last_sample->length = 0;
   last_sample->signals = signals;
   last_sample->ts.origin = time_now();
   last_sample->sequence = 0;

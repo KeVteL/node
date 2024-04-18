@@ -97,28 +97,28 @@ double Hist::getVar() const {
 
 double Hist::getStddev() const { return sqrt(getVar()); }
 
-void Hist::print(Logger logger, bool details) const {
+void Hist::print(Logger logger, bool details, std::string prefix) const {
   if (total > 0) {
     Hist::cnt_t missed = total - higher - lower;
 
-    logger->info("Counted values: {} ({} between {} and {})", total, missed,
+    logger->info("{}Counted values: {} ({} between {} and {})", prefix, total, missed,
                  low, high);
-    logger->info("Highest:  {:g}", highest);
-    logger->info("Lowest:   {:g}", lowest);
-    logger->info("Mu:       {:g}", getMean());
-    logger->info("1/Mu:     {:g}", 1.0 / getMean());
-    logger->info("Variance: {:g}", getVar());
-    logger->info("Stddev:   {:g}", getStddev());
+    logger->info("{}Highest:  {:g}", prefix, highest);
+    logger->info("{}Lowest:   {:g}", prefix, lowest);
+    logger->info("{}Mu:       {:g}", prefix, getMean());
+    logger->info("{}1/Mu:     {:g}", prefix, 1.0 / getMean());
+    logger->info("{}Variance: {:g}", prefix, getVar());
+    logger->info("{}Stddev:   {:g}", prefix, getStddev());
 
     if (details && total - higher - lower > 0) {
       char *buf = dump();
-      logger->info("Matlab: {}", buf);
+      logger->info("{}Matlab: {}", prefix, buf);
       free(buf);
 
       plot(logger);
     }
   } else
-    logger->info("Counted values: {}", total);
+    logger->info("{}Counted values: {}", prefix, total);
 }
 
 void Hist::plot(Logger logger) const {
@@ -128,7 +128,7 @@ void Hist::plot(Logger logger) const {
   std::vector<TableColumn> cols = {
       {-9, TableColumn::Alignment::RIGHT, "Value", "%+9.3g"},
       {-6, TableColumn::Alignment::RIGHT, "Count", "%6ju"},
-      {0, TableColumn::Alignment::LEFT, "Plot", "%s", "occurences"}};
+      {0, TableColumn::Alignment::LEFT, "Plot", "%s", "occurrences"}};
 
   Table table = Table(logger, cols);
 
