@@ -6,7 +6,6 @@
  */
 
 #include <cstdlib>
-#include <cstring>
 #include <signal.h>
 #include <unistd.h>
 
@@ -486,7 +485,7 @@ protected:
       usleep(0.1e6);
 
     /* We are stopping the node here in order to unblock the receiving threads
-		 * Node::read() call and allow it to be joined(). */
+     * Node::read() call and allow it to be joined(). */
     ret = node->stop();
     if (ret)
       throw RuntimeError("Failed to stop node {}: reason={}", node->getName(),

@@ -9,14 +9,15 @@
 
 #include <bitset>
 
+#include <fmt/ostream.h>
 #include <jansson.h>
 #include <pthread.h>
-#include <fmt/ostream.h>
 #include <uuid/uuid.h>
 #include <villas/colors.hpp>
 #include <villas/common.hpp>
 #include <villas/config.hpp>
 #include <villas/list.hpp>
+#include <villas/log.hpp>
 #include <villas/mapping_list.hpp>
 #include <villas/node.hpp>
 #include <villas/node_list.hpp>
@@ -26,7 +27,6 @@
 #include <villas/queue.h>
 #include <villas/signal_list.hpp>
 #include <villas/task.hpp>
-#include <villas/log.hpp>
 
 // Forward declarations
 struct pollfd;
@@ -140,9 +140,9 @@ public:
   void checkPrepared();
 
   /* Start a path.
-	*
-	* Start a new pthread for receiving/sending messages over this path.
-	*/
+   *
+   * Start a new pthread for receiving/sending messages over this path.
+   */
   void start();
 
   // Stop a path.
@@ -154,13 +154,13 @@ public:
   unsigned getOutputSignalsMaxCount();
 
   /* Parse a single path and add it to the global configuration.
-	*
-	* @param json A JSON object containing the configuration of the path.
-	* @param p Pointer to the allocated memory for this path
-	* @param nodes A linked list of all existing nodes
-	* @retval 0 Success. Everything went well.
-	* @retval <0 Error. Something went wrong.
-	*/
+   *
+   * @param json A JSON object containing the configuration of the path.
+   * @param p Pointer to the allocated memory for this path
+   * @param nodes A linked list of all existing nodes
+   * @retval 0 Success. Everything went well.
+   * @retval <0 Error. Something went wrong.
+   */
   void parse(json_t *json, NodeList &nodes, const uuid_t sn_uuid);
 
   void parseMask(json_t *json_mask, NodeList &nodes);
@@ -183,8 +183,7 @@ public:
 } // namespace node
 } // namespace villas
 
-// #ifndef FMT_LEGACY_OSTREAM_FORMATTER
-// template <>
-// class fmt::formatter<villas::node::Path>
-//     : public fmt::ostream_formatter {};
-// #endif
+#ifndef FMT_LEGACY_OSTREAM_FORMATTER
+template <>
+class fmt::formatter<villas::node::Path> : public fmt::ostream_formatter {};
+#endif

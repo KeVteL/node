@@ -6,7 +6,6 @@
  */
 
 #include <cerrno>
-#include <cinttypes>
 #include <cstring>
 #include <iostream>
 #include <libgen.h>
@@ -233,7 +232,7 @@ int villas::node::file_start(NodeCompat *n) {
   ret = stat(dir, &sb);
   if (ret) {
     if (errno == ENOENT || errno == ENOTDIR) {
-      ret = mkdir(dir, 0644);
+      ret = mkdir(dir, 0755);
       if (ret)
         throw SystemError("Failed to create directory");
     } else if (errno != EISDIR)

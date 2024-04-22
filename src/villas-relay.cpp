@@ -57,9 +57,9 @@ RelaySession *RelaySession::get(Relay *r, lws *wsi) {
   char uri[64];
 
   /* We use the URI to associate this connection to a session
-	 * Example: ws://example.com/node_1
-	 *   Will select the session with the name 'node_1'
-	 */
+   * Example: ws://example.com/node_1
+   *   Will select the session with the name 'node_1'
+   */
 
   // Get path of incoming request
   lws_hdr_copy(wsi, uri, sizeof(uri), WSI_TOKEN_GET_URI);
@@ -165,7 +165,7 @@ void RelayConnection::read(void *in, size_t len) {
       auto c = p.second;
 
       /* We skip the current connection in order
-				* to avoid receiving our own data */
+       * to avoid receiving our own data */
       if (loopback == false && c == this)
         continue;
 

@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
@@ -146,6 +145,8 @@ void SuperNode::parse(json_t *root) {
       auto *n = NodeFactory::make(node_type, node_uuid, node_name);
       if (!n)
         throw MemoryAllocationError();
+
+      n->configPath = getConfigPath();
 
       ret = n->parse(json_node);
       if (ret) {

@@ -5,8 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <cstring>
-
 #include <villas/hist.hpp>
 #include <villas/node.hpp>
 #include <villas/stats.hpp>
@@ -188,7 +186,7 @@ void Stats::print(FILE *f, enum Format fmt, int verbose) const {
   case Format::HUMAN:
     for (auto m : metrics) {
       logger->info("{}: {}", m.second.name, m.second.desc);
-      histograms.at(m.first).print(logger, verbose);
+      histograms.at(m.first).print(logger, verbose, "  ");
     }
     break;
 
