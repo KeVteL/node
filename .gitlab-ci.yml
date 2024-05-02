@@ -180,11 +180,11 @@ pkg:docker:
         PLATFORM: linux/amd64
         ARCH: x86_64
         TRIPLET: x86_64-linux-gnu
-      - DISTRO: debian
-        PLATFORM: linux/arm/v7
-        ARCH: armhf
-        TRIPLET: arm-linux-gnu
-        DOCKER_FILE: packaging/docker/Dockerfile.debian-multiarch
+      # - DISTRO: debian
+      #   PLATFORM: linux/arm/v7
+      #   ARCH: armhf
+      #   TRIPLET: arm-linux-gnu
+      #   DOCKER_FILE: packaging/docker/Dockerfile.debian-multiarch
       - DISTRO: debian
         PLATFORM: linux/arm64/v8
         ARCH: arm64
