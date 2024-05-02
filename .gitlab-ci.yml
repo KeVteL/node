@@ -185,11 +185,11 @@ pkg:docker:
       #   ARCH: armhf
       #   TRIPLET: arm-linux-gnueabihf
       #   DOCKER_FILE: packaging/docker/Dockerfile.debian-multiarch
-      # - DISTRO: debian
-      #   PLATFORM: linux/arm64/v8
-      #   ARCH: arm64
-      #   TRIPLET: aarch64-linux-gnu
-      #   DOCKER_FILE: packaging/docker/Dockerfile.debian-multiarch
+      - DISTRO: debian
+        PLATFORM: linux/arm64/v8
+        ARCH: arm64
+        TRIPLET: aarch64-linux-gnu
+        DOCKER_FILE: packaging/docker/Dockerfile.debian-multiarch
 
   needs: []
 
