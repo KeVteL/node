@@ -176,10 +176,10 @@ pkg:docker:
     TARGET: app
   parallel:
     matrix:
-      - DISTRO: debian
-        PLATFORM: linux/amd64
-        ARCH: x86_64
-        TRIPLET: x86_64-linux-gnu
+      # - DISTRO: debian
+      #   PLATFORM: linux/amd64
+      #   ARCH: x86_64
+      #   TRIPLET: x86_64-linux-gnu
       # - DISTRO: debian
       #   PLATFORM: linux/arm/v7
       #   ARCH: armhf
