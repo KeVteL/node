@@ -183,7 +183,7 @@ pkg:docker:
       - DISTRO: debian
         PLATFORM: linux/arm/v7
         ARCH: armhf
-        TRIPLET: arm-linux-gnueabihf
+        TRIPLET: arm-linux-gnu
         DOCKER_FILE: packaging/docker/Dockerfile.debian-multiarch
       - DISTRO: debian
         PLATFORM: linux/arm64/v8
