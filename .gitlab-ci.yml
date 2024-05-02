@@ -189,7 +189,7 @@ pkg:docker:
         PLATFORM: linux/arm64/v8
         ARCH: arm64
         TRIPLET: aarch64-linux-gnu
-        DOCKER_FILE: packaging/docker/Dockerfile.debian-multiarch
+        DOCKER_FILE: packaging/docker/Dockerfile.ubuntu
 
   needs: []
 
