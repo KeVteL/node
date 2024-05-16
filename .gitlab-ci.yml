@@ -190,7 +190,7 @@ pkg:docker:
       - DISTRO: debian
         PLATFORM: linux/arm/v7
         ARCH: armhf
-        TRIPLET: aarch64-linux-gnu
+        TRIPLET: arm-linux-gnu
         TAG: PI5
       # - DISTRO: debian
       #   PLATFORM: linux/arm/v7
