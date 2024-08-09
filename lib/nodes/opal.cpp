@@ -90,7 +90,7 @@ static int opal_register_region(int argc, char *argv[]) {
 int villas::node::opal_type_start(villas::node::SuperNode *sn) {
   int ret, err, noRecvIcons, noSendIcons;
 
-  pthread_mutex_init(&lock, nullptr);
+  ret = pthread_mutex_init(&lock, nullptr);
   if (ret) {
     return ret;
   }
