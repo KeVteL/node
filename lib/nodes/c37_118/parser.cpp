@@ -13,6 +13,9 @@
 using namespace villas::node::c37_118;
 using namespace villas::node::c37_118::parser;
 
+// Sample CRC routine taken from IEEE Std C37.118.2-2011 Annex B
+//
+// TODO: Is this code license compatible to Apache 2.0?
 uint16_t parser::calculate_crc(unsigned char const *frame, uint16_t size) {
   uint16_t crc = 0xFFFF;
   uint16_t temp;
