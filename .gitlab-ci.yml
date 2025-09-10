@@ -173,7 +173,10 @@ test:unit:
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   script:
     - cmake -S . -B build ${CMAKE_OPTS}
-    - export PYTHONPATH=$PYTHONPATH:${PWD}/build/python/binding/:${PWD}/python/villas/node/
+    - cmake --build build ${CMAKE_BUILD_OPTS} --target python_binding
+    - export PYTHONPATH=$PYTHONPATH:${PWD}/python/villas/node/
+    - python_binding=$(find ${PWD}/build/python/binding/ -name "python_binding*.so" | head -n1)
+    - ls -ln "$python_binding" ${PWD}/python/villas/node/$(basename "$python_binding")
     - cmake --build build ${CMAKE_BUILD_OPTS} --target run-unit-tests run-unit-tests-common run-python-unit-tests
   needs:
     - job: "build:source: [fedora]"
@@ -184,7 +187,10 @@ test:integration:
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   script:
     - cmake -S . -B build ${CMAKE_OPTS}
-    - export PYTHONPATH=$PYTHONPATH:${PWD}/build/python/binding/:${PWD}/python/villas/node/
+    - cmake --build build ${CMAKE_BUILD_OPTS} --target python_binding
+    - export PYTHONPATH=$PYTHONPATH:${PWD}/python/villas/node/
+    - python_binding=$(find ${PWD}/build/python/binding/ -name "python_binding*.so" | head -n1)
+    - ls -ln "$python_binding" ${PWD}/python/villas/node/$(basename "$python_binding")
     - cmake --build build ${CMAKE_BUILD_OPTS} --target run-integration-tests run-python-integration-tests
   artifacts:
     name: ${CI_PROJECT_NAME}-integration-tests-${CI_BUILD_REF}

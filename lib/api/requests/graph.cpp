@@ -45,7 +45,7 @@ public:
     auto *graph = sn->getGraph();
 
     char *data;
-    unsigned len;
+    size_t len;
 
     std::list<std::string> supportedLayouts = {
         "circo", "dot",   "fdp",       "neato", "nop",  "nop1",
