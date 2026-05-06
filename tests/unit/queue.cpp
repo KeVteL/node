@@ -260,7 +260,7 @@ ParameterizedTestParameters(queue, multi_threaded) {
                                    .batch_size = 10,
                                    .mt = &memory::mmap_hugetlb}};
 
-  return cr_make_param_array(struct param, params, ARRAY_LEN(params));
+  return cr_make_param_array(struct param, params, std::size(params));
 }
 
 // cppcheck-suppress unknownMacro
@@ -290,7 +290,7 @@ ParameterizedTest(struct param *p, queue, multi_threaded, .timeout = 20,
     pthread_create(&threads[i], nullptr,
                    p->many ? producer_consumer_many : producer_consumer, p);
 
-  sleep(0.2);
+  usleep(200'000);
 
   ret = tsc_init(&tsc);
   cr_assert(!ret);

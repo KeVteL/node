@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <filesystem>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -29,6 +28,7 @@ namespace orchestra {
 class Item {
 public:
   virtual void toXml(xmlNode *parent, bool withDefault) const = 0;
+  virtual ~Item() = default;
 };
 
 class DataItem : public Item {
@@ -77,6 +77,7 @@ public:
   virtual void toXml(xmlNode *domain) const = 0;
   virtual std::string getDetails() const = 0;
   virtual void parse(json_t *json) = 0;
+  virtual ~Connection() = default;
 
   static std::shared_ptr<Connection> fromJson(json_t *json);
 };

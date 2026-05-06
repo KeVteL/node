@@ -167,7 +167,7 @@ void Path::prepare(NodeList &nodes) {
 
   // Create path sources
   std::unordered_map<Node *, PathSource::Ptr> psm;
-  unsigned i = 0, j = 0;
+  unsigned i = 0;
   for (auto me : mappings) {
     Node *n = me->node;
     PathSource::Ptr ps;
@@ -208,7 +208,7 @@ void Path::prepare(NodeList &nodes) {
       if (masked.empty() ||
           std::find(masked.begin(), masked.end(), n) != masked.end()) {
         ps->masked = true;
-        mask.set(j);
+        mask.set(i);
       }
 
       /* Get the real node backing this path source
@@ -219,7 +219,7 @@ void Path::prepare(NodeList &nodes) {
       rn->sources.push_back(ps);
 
       sources.push_back(ps);
-      j++;
+      i++;
       psm[n] = ps;
     }
 
@@ -251,7 +251,6 @@ void Path::prepare(NodeList &nodes) {
     }
 
     ps->mappings.push_back(me);
-    i++;
   }
 
   // Prepare path destinations
@@ -298,7 +297,7 @@ void Path::prepare(NodeList &nodes) {
 
   // Prepare pool
   auto osigs = getOutputSignals();
-  unsigned pool_size = MAX(1UL, destinations.size()) * queuelen;
+  unsigned pool_size = std::max(1UL, destinations.size()) * queuelen;
 
   ret = pool_init(&pool, pool_size, SAMPLE_LENGTH(osigs->size()), pool_mt);
   if (ret)
@@ -419,7 +418,7 @@ void Path::parseMask(json_t *json_mask, NodeList &nodes) {
     throw ConfigError(json_mask, "node-config-path-mask",
                       "The 'mask' setting must be a list of node names");
 
-  json_array_foreach(json_mask, i, json_entry) {
+  json_array_foreach (json_mask, i, json_entry) {
     const char *name;
     Node *node;
 
@@ -444,8 +443,8 @@ void Path::check() {
     throw RuntimeError("Setting 'rate' of path {} must be a positive number.",
                        this->toString());
 
-  if (!IS_POW2(queuelen)) {
-    queuelen = LOG2_CEIL(queuelen);
+  if (!std::has_single_bit(queuelen)) {
+    queuelen = std::bit_ceil(queuelen);
     logger->warn("Queue length should always be a power of 2. Adjusting to {}",
                  queuelen);
   }
@@ -648,7 +647,8 @@ SignalList::Ptr Path::getOutputSignals(bool after_hooks) {
 unsigned Path::getOutputSignalsMaxCount() {
 #ifdef WITH_HOOKS
   if (hooks.size() > 0)
-    return MAX(signals->size(), hooks.getSignalsMaxCount());
+    return std::max(static_cast<unsigned>(signals->size()),
+                    hooks.getSignalsMaxCount());
 #endif // WITH_HOOKS
 
   return signals->size();

@@ -37,7 +37,7 @@ public:
     if (ret)
       throw RuntimeError("Failed to initialize memory");
 
-    for (unsigned i = 0; i < ARRAY_LEN(dirs); i++) {
+    for (unsigned i = 0; i < std::size(dirs); i++) {
       dirs[i].name = i == 0 ? "in" : "out";
       dirs[i].format = "villas.human";
     }
@@ -52,7 +52,7 @@ protected:
     Format *formatter;
   } dirs[2];
 
-  void usage() {
+  void usage() override {
     std::cout << "Usage: villas-convert [OPTIONS]" << std::endl
               << "  OPTIONS are:" << std::endl
               << "    -i FMT           set the input format" << std::endl
@@ -67,7 +67,7 @@ protected:
     printCopyright();
   }
 
-  void parse() {
+  void parse() override {
     // Parse optional command line arguments
     int c;
     while ((c = getopt(argc, argv, "Vhd:i:o:t:")) != -1) {
@@ -105,10 +105,10 @@ protected:
     }
   }
 
-  int main() {
+  int main() override {
     int ret;
 
-    for (unsigned i = 0; i < ARRAY_LEN(dirs); i++) {
+    for (unsigned i = 0; i < std::size(dirs); i++) {
       json_t *json_format;
       json_error_t err;
       std::string format = dirs[i].format;
@@ -150,7 +150,7 @@ protected:
       dirs[1].formatter->print(stdout, smps, ret);
     }
 
-    for (unsigned i = 0; i < ARRAY_LEN(dirs); i++)
+    for (unsigned i = 0; i < std::size(dirs); i++)
       delete dirs[i].formatter;
 
     return 0;

@@ -134,7 +134,7 @@ protected:
     int id;
     RSecurityAlgorithm security;
     RSignatureAlgorithm signature;
-    std::vector<uint8_t> data;
+    std::vector<std::byte> data;
   };
 
   struct InputMapping {
@@ -260,7 +260,7 @@ protected:
 public:
   GooseNode(const uuid_t &id = {}, const std::string &name = "");
 
-  virtual ~GooseNode() override;
+  ~GooseNode() override;
 
   std::vector<int> getPollFDs() override;
 

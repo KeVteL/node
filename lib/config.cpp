@@ -187,8 +187,8 @@ void Config::resolveEnvVars(std::string &text) {
   std::smatch match;
   while (std::regex_search(text, match, env_re)) {
     auto const from = match[0];
-    auto const var_name = match[1].str().c_str();
-    char *var_value = std::getenv(var_name);
+    auto const var_name = match[1].str();
+    char *var_value = std::getenv(var_name.c_str());
     if (!var_value)
       throw RuntimeError("Unresolved environment variable: {}", var_name);
 
@@ -287,7 +287,7 @@ json_t *Config::walkStrings(json_t *root, str_walk_fcn_t cb) {
   case JSON_OBJECT:
     new_root = json_object();
 
-    json_object_foreach(root, key, val) {
+    json_object_foreach (root, key, val) {
       new_val = walkStrings(val, cb);
 
       json_object_set_new(new_root, key, new_val);
@@ -298,7 +298,7 @@ json_t *Config::walkStrings(json_t *root, str_walk_fcn_t cb) {
   case JSON_ARRAY:
     new_root = json_array();
 
-    json_array_foreach(root, index, val) {
+    json_array_foreach (root, index, val) {
       new_val = walkStrings(val, cb);
 
       json_array_append_new(new_root, new_val);

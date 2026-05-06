@@ -42,7 +42,7 @@ public:
     if (!json_is_array(json_phases))
       throw ConfigError(json_phases, "node-config-hook-ebm-phases");
 
-    json_array_foreach(json_phases, i, json_phase) {
+    json_array_foreach (json_phases, i, json_phase) {
       int voltage, current;
 
       ret = json_unpack_ex(json_phase, &err, 0, "[ i, i ]", &voltage, &current);
@@ -55,7 +55,7 @@ public:
     state = State::PARSED;
   }
 
-  virtual void start() override {
+  void start() override {
     assert(state == State::PREPARED);
 
     energy = 0;
@@ -64,7 +64,7 @@ public:
     state = State::STARTED;
   }
 
-  virtual void periodic() override {
+  void periodic() override {
     assert(state == State::STARTED);
 
     logger->info("Energy: {}", energy);
