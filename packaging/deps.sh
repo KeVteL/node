@@ -148,9 +148,7 @@ python3 -m pip install \
     --prefix=${PIP_PREFIX} \
     cmake==3.31.6 \
     meson==1.9.1 \
-    ninja==1.11.1.4 \
-    grpcio \
-    grpcio-tools
+    ninja==1.11.1.4
 
 # Build & Install Criterion
 if ! pkg-config "criterion >= 2.4.1" && \

@@ -32,7 +32,8 @@ RUN dnf -y install \
 	cppcheck \
 	xmlto dblatex rubygem-asciidoctor \
 	psmisc procps-ng \
-	rabbitmq-server mosquitto
+	rabbitmq-server mosquitto \
+	python3-grpcio python3-grpcio-tools
 
 # Tools for debugging, coverage, profiling
 RUN pip install \
