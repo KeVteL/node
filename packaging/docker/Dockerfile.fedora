@@ -115,18 +115,15 @@ ARG CMAKE_OPTS
 
 COPY . /villas/
 
-WORKDIR /villas/build
-RUN --mount=type=cache,id=${DISTRO}-${FEDORA_VERSION}-${ARCH}-${REF},target=/villas/build \
-	cmake \
-	-DCMAKE_CXX_COMPILER=g++-14 \
-	-DCMAKE_C_COMPILER=gcc-14 \
-	${CMAKE_OPTS} .. && \
-	make -j$(nproc) install && \
-	ldconfig
+WORKDIR /villas
+
+RUN cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build ./build --parallel=8 && \
+    cmake --build ./build --target install
 
 WORKDIR /villas
 
-ENTRYPOINT ["villas"]
+ENTRYPOINT ["bash"]
 
 LABEL \
 	org.label-schema.schema-version="1.0" \
