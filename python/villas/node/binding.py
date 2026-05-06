@@ -36,7 +36,7 @@ def _warn_if_not_implemented(func):
             msg = (
                 f"[\033[93mWarning\033[0m]: Function '{func.__name__}()' "
                 + "is not implemented for node type "
-                + f"'{vn.node_name(self._hndle)}'."
+                + f"'{vn.node_name(self._hndle)}'"
             )
             logger.warning(msg)
         return ret
@@ -83,7 +83,9 @@ class Node:
                     seq,
                 )
             else:
-                return self.node.pack_from(self.idx, values, ts_origin, ts_received, seq)
+                return self.node.pack_from(
+                    self.idx, values, ts_origin, ts_received, seq
+                )
 
         def unpack_to(
             self,
@@ -241,6 +243,11 @@ class Node:
         """Get node name with less details."""
         return vn.node_name_short(self._hndle)
 
+    @_warn_if_not_implemented
+    def netem_fds(self):
+        """Get file descriptor list associated with node"""
+        return vn.node_netem_fds(self._hndle)
+
     def output_signals_max_cnt(self):
         """Get max output signal count."""
         return vn.node_output_signals_max_cnt(self._hndle)
@@ -248,6 +255,11 @@ class Node:
     def pause(self):
         """Pause a node"""
         return vn.node_pause(self._hndle)
+
+    @_warn_if_not_implemented
+    def poll_fds(self):
+        """Get file descriptor list associated with node"""
+        return vn.node_poll_fds(self._hndle)
 
     def prepare(self):
         """Prepare a node"""

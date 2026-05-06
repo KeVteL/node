@@ -6,6 +6,7 @@
  */
 
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
 #include <jansson.h>
@@ -50,9 +51,9 @@ int node_read(vnode *n, vsample **smps, unsigned cnt);
 
 int node_write(vnode *n, vsample **smps, unsigned cnt);
 
-int node_poll_fds(vnode *n, int fds[]);
+std::size_t node_poll_fds(vnode *n, int fds[]);
 
-int node_netem_fds(vnode *n, int fds[]);
+std::size_t node_netem_fds(vnode *n, int fds[]);
 
 bool node_is_valid_name(const char *name);
 

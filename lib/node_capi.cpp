@@ -108,7 +108,7 @@ int node_write(vnode *n, vsample **smps, unsigned cnt) {
   return nc->write((villas::node::Sample **)smps, cnt);
 }
 
-int node_poll_fds(vnode *n, int fds[]) {
+std::size_t node_poll_fds(vnode *n, int fds[]) {
   auto *nc = (Node *)n;
   auto l = nc->getPollFDs();
 
@@ -118,7 +118,7 @@ int node_poll_fds(vnode *n, int fds[]) {
   return l.size();
 }
 
-int node_netem_fds(vnode *n, int fds[]) {
+std::size_t node_netem_fds(vnode *n, int fds[]) {
   auto *nc = (Node *)n;
   auto l = nc->getNetemFDs();
 
@@ -131,12 +131,12 @@ int node_netem_fds(vnode *n, int fds[]) {
 bool node_is_valid_name(const char *name) { return Node::isValidName(name); }
 
 bool node_is_enabled(const vnode *n) {
-  auto *nc = (Node *)n;
+  auto *nc = (const Node *)n;
   return nc->isEnabled();
 }
 
 json_t *node_to_json(const vnode *n) {
-  auto *nc = (Node *)n;
+  auto *nc = (const Node *)n;
   return nc->toJson();
 }
 

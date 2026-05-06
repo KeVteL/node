@@ -5,6 +5,7 @@
  * Systems, RWTH Aachen University SPDX-License-Identifier: Apache-2.0
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <stdexcept>
@@ -12,6 +13,7 @@
 #include <jansson.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <sys/epoll.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <uuid/uuid.h>
@@ -174,6 +176,17 @@ PYBIND11_MODULE(python_binding, m) {
       },
       py::return_value_policy::copy);
 
+  m.def("node_netem_fds", [](void *n) -> py::list {
+    int fds[16];
+    py::list list;
+
+    std::size_t len = node_poll_fds(reinterpret_cast<vnode *>(n), fds);
+    for (std::size_t i = 0; i < len; ++i) {
+      list.append(fds[i]);
+    }
+    return list;
+  });
+
   m.def(
       "node_new",
       [](const char *json_str, const char *id_str) -> vnode * {
@@ -205,6 +218,17 @@ PYBIND11_MODULE(python_binding, m) {
 
   m.def("node_pause", [](void *n) -> int {
     return node_pause(reinterpret_cast<vnode *>(n));
+  });
+
+  m.def("node_poll_fds", [](void *n) -> py::list {
+    int fds[16];
+    py::list list;
+
+    std::size_t len = node_poll_fds(reinterpret_cast<vnode *>(n), fds);
+    for (std::size_t i = 0; i < len; ++i) {
+      list.append(fds[i]);
+    }
+    return list;
   });
 
   m.def("node_prepare", [](void *n) -> int {
@@ -381,6 +405,26 @@ PYBIND11_MODULE(python_binding, m) {
     return d;
   });
 
+  m.def("epoll_create", [](int flags = 0) { return epoll_create1(flags); });
+
+  // m.def("epoll_ctl",
+  //       [](int epfd, int op, int fd, struct epoll_event event) {
+  //         int epollctl = epoll_ctl(epfd, op, fd, event);
+  //         return epollctl;
+  //       });
+  //
+  // m.def("eventfds", [](unsigned int count = 0, int flags = 0) {
+  //   return eventfd(count, flags);
+  // });
+  //
+  // m.def("fds_close", [](unsigned int fds) { return close(fds); });
+  //
+  // py::enum_<int>(m, "EPOLL_CTL")
+  //     .value("ADD", EPOLL_CTL_ADD)
+  //     .value("DEL", EPOLL_CTL_DEL)
+  //     .value("MOD", EPOLL_CTL_MOD)
+  //     .export_values();
+
   py::class_<SamplesArray>(m, "SamplesArray")
       .def(py::init<unsigned int>(), py::arg("len"))
       .def("__getitem__",
@@ -401,4 +445,5 @@ PYBIND11_MODULE(python_binding, m) {
       .def("grow", &SamplesArray::grow)
       .def("get_block", &SamplesArray::get_block)
       .def("clear", &SamplesArray::clear);
+  // .def("register_event_fds", &SamplesArray::register_event_fds)
 }

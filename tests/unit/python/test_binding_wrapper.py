@@ -30,11 +30,9 @@ class BindingWrapperUnitTests(unittest.TestCase):
         except Exception as e:
             self.fail(f"err: {e}")
 
-    @unittest.skip(
-        """Starting a socket twice will result in a RuntimeError.
+    @unittest.skip("""Starting a socket twice will result in a RuntimeError.
     Thise will leave the socket IP bound and may mess with other tests.
-    The behavior is Node specific."""
-    )
+    The behavior is Node specific.""")
     def test_start_err(self):
         try:
             self.assertEqual(0, self.test_node.start())
@@ -202,7 +200,9 @@ test_node_config = {
         "layer": "udp",
         "in": {
             "address": "*:12000",
-            "signals": [{"name": "tap_position", "type": "integer", "init": 0}],
+            "signals": [
+                {"name": "tap_position", "type": "integer", "init": 0}
+            ],
         },
         "out": {"address": "127.0.0.1:12001"},
     }

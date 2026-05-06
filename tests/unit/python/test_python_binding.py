@@ -39,13 +39,11 @@ class BindingUnitTests(unittest.TestCase):
         except Exception as e:
             self.fail(f"err: {e}")
 
-    @unittest.skip(
-        """
+    @unittest.skip("""
     Starting a socket twice will result in a RuntimeError.
     Thise will leave the socket IP bound and may mess with other tests.
     The behavior is Node specific.
-    """
-    )
+    """)
     def test_start_err(self):
         try:
             self.assertEqual(0, pb.node_start(self.test_node))
@@ -200,7 +198,9 @@ test_node_config = {
         "layer": "udp",
         "in": {
             "address": "*:12000",
-            "signals": [{"name": "tap_position", "type": "integer", "init": 0}],
+            "signals": [
+                {"name": "tap_position", "type": "integer", "init": 0}
+            ],
         },
         "out": {"address": "127.0.0.1:12001"},
     }

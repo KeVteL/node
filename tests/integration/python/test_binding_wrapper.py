@@ -112,12 +112,16 @@ class BindingWrapperIntegrationTests(unittest.TestCase):
                 if node.check():
                     raise RuntimeError("Failed to verify node configuration")
                 if node.prepare():
-                    raise RuntimeError(f"Failed to verify {node.name()} node config")
+                    raise RuntimeError(
+                        f"Failed to verify {node.name()} node config"
+                    )
                 node.start()
 
             for i in range(100):
                 # Generate signals and send over send_socket
-                self.assertEqual(test_nodes["signal_generator"][i].read_from(2, 1), 1)
+                self.assertEqual(
+                    test_nodes["signal_generator"][i].read_from(2, 1), 1
+                )
                 self.assertEqual(
                     test_nodes["send_socket"][i].write_to(
                         test_nodes["signal_generator"], 1
@@ -135,7 +139,9 @@ class BindingWrapperIntegrationTests(unittest.TestCase):
                 30,
             )
             self.assertEqual(
-                test_nodes["intmdt_socket"][30:].write_to(test_nodes["intmdt_socket"]),
+                test_nodes["intmdt_socket"][30:].write_to(
+                    test_nodes["intmdt_socket"]
+                ),
                 70,
             )
             # print(len(test_nodes["intmdt_socket"]._smps))
@@ -159,7 +165,9 @@ class BindingWrapperIntegrationTests(unittest.TestCase):
             # if another 30+70 samples are not allocated,
             # sending 100 at once is impossible
             self.assertEqual(
-                test_nodes["recv_socket"].write_to(test_nodes["recv_socket"], 100),
+                test_nodes["recv_socket"].write_to(
+                    test_nodes["recv_socket"], 100
+                ),
                 100,
             )
             # try writing as full slice
@@ -180,7 +188,9 @@ class BindingWrapperIntegrationTests(unittest.TestCase):
                 [1.01, 2.01, 3.01, 4.01, 5.01], int(1e9), int(1e9) + 100
             )
             self.test_node[2].pack_from(42, int(1e9), int(1e9) + 100)
-            self.test_node[3].pack_from(self.test_node[1], int(1e9), int(1e9) + 100)
+            self.test_node[3].pack_from(
+                self.test_node[1], int(1e9), int(1e9) + 100
+            )
             self.test_node[2].unpack_to(self.test_node[1])
             self.assertEqual([42.0], self.test_node[1].details()["data"])
             self.test_node[0].unpack_to(self.test_node[1])
@@ -200,7 +210,9 @@ class BindingWrapperIntegrationTests(unittest.TestCase):
             node_uuid = str(uuid.uuid4())
             node = Node(node_config, node_uuid, 100)
             self.assertEqual(len(node), 100)
-            node[199].pack_from([1.01, 2.01, 3.01, 4.01, 5.01], int(1e9), int(1e9) + 100)
+            node[199].pack_from(
+                [1.01, 2.01, 3.01, 4.01, 5.01], int(1e9), int(1e9) + 100
+            )
             self.assertEqual(len(node), 200)
             node[199].unpack_to(node[299])
             self.assertEqual(len(node), 300)
