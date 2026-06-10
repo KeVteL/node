@@ -33,7 +33,8 @@ RUN dnf -y install \
 	xmlto dblatex rubygem-asciidoctor \
 	psmisc procps-ng \
 	rabbitmq-server mosquitto \
-	python3-grpcio python3-grpcio-tools
+	python3-grpcio python3-grpcio-tools \
+	etcd
 
 # Tools for debugging, coverage, profiling
 RUN pip install \
@@ -122,9 +123,13 @@ RUN cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Release && \
     cmake --build ./build --parallel=8 && \
     cmake --build ./build --target install
 
-WORKDIR /villas
+RUN echo /usr/local/lib64   >> /etc/ld.so.conf && \
+	ldconfig -f /etc/ld.so.conf
 
-ENTRYPOINT ["bash"]
+WORKDIR /home/
+
+ENTRYPOINT []
+CMD ["bash"]
 
 LABEL \
 	org.label-schema.schema-version="1.0" \
